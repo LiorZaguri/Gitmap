@@ -1,0 +1,63 @@
+import React, { useState, useEffect } from 'react';
+
+interface InputPanelProps {
+  onGenerate: (repo: string, token: string) => void;
+  loading: boolean;
+}
+
+export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading }) => {
+  const [repo, setRepo] = useState('');
+  const [token, setToken] = useState('');
+
+  useEffect(() => {
+    const savedRepo = localStorage.getItem('gitmap_repo');
+    const savedToken = localStorage.getItem('gitmap_token');
+    if (savedRepo) setRepo(savedRepo);
+    if (savedToken) setToken(savedToken);
+  }, []);
+
+  const handleGenerate = () => {
+    if (!repo || !repo.includes('/')) {
+      alert('Please enter a valid repo (owner/repo)');
+      return;
+    }
+    if (!token) {
+      alert('Please enter a GitHub token');
+      return;
+    }
+    onGenerate(repo, token);
+  };
+
+  return (
+    <div className="input-panel">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.08em' }}>Repository</label>
+          <input
+            type="text"
+            value={repo}
+            onChange={(e) => setRepo(e.target.value)}
+            placeholder="owner/repo"
+            style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '9px 12px', fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text)', outline: 'none' }}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.08em' }}>GitHub Token</label>
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxx"
+            style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '9px 12px', fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text)', outline: 'none' }}
+          />
+        </div>
+      </div>
+      <button className="gen-btn" onClick={handleGenerate} disabled={loading}>
+        {loading ? 'Generating...' : 'Generate Roadmap'}
+      </button>
+      <p style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text3)', marginTop: '8px' }}>
+        Token needs Contents: Read-only. <a href="https://github.com/settings/tokens/new?scopes=repo&description=Roadmap" target="_blank" rel="noreferrer" style={{ color: 'var(--green)', textDecoration: 'none' }}>Create one →</a>
+      </p>
+    </div>
+  );
+};

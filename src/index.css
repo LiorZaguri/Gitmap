@@ -1,0 +1,107 @@
+:root {
+  --bg: #0d0d0f;
+  --bg2: #141416;
+  --bg3: #1c1c1f;
+  --bg4: #242428;
+  --border: rgba(255, 255, 255, 0.06);
+  --border2: rgba(255, 255, 255, 0.1);
+  --border3: rgba(255, 255, 255, 0.18);
+  --text: #f2f2f4;
+  --text2: #9191a4;
+  --text3: #55555f;
+  --green: #00d084;
+  --green-dim: rgba(0, 208, 132, 0.12);
+  --red: #ff5555;
+  --blue: #4d9fff;
+  --purple: #a78bfa;
+  --amber: #ffb84d;
+  --pink: #ff79c6;
+  --teal: #5af8e8;
+  --road: #1e2235;
+  --road-edge: #2a3050;
+  --dash: rgba(255, 255, 255, 0.15);
+  --r: 8px;
+  --r-lg: 12px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+code, pre, .mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+/* Common UI Elements */
+.input-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  padding: 22px;
+  margin-bottom: 28px;
+}
+
+.gen-btn {
+  width: 100%;
+  padding: 11px;
+  background: var(--green);
+  border: none;
+  border-radius: var(--r);
+  font-size: 14px;
+  font-weight: 700;
+  color: #000;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.gen-btn:hover:not(:disabled) {
+  background: #00b872;
+  box-shadow: 0 0 28px rgba(0, 208, 132, 0.25);
+}
+
+.gen-btn:disabled {
+  background: #0a3d26;
+  color: #1a6b42;
+  cursor: not-allowed;
+}
+
+.error-box {
+  background: rgba(255, 85, 85, 0.07);
+  border: 1px solid rgba(255, 85, 85, 0.2);
+  border-radius: var(--r);
+  padding: 11px 15px;
+  font-size: 13px;
+  color: #ff9999;
+  margin-bottom: 18px;
+}
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin: 0 auto 12px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

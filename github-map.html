@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub → Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0d0f;--bg2:#141416;--bg3:#1c1c1f;--bg4:#242428;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.1);--border3:rgba(255,255,255,0.18);
+  --text:#f2f2f4;--text2:#9191a4;--text3:#55555f;
+  --green:#00d084;--green-dim:rgba(0,208,132,0.12);
+  --red:#ff5555;--blue:#4d9fff;--purple:#a78bfa;--amber:#ffb84d;--pink:#ff79c6;--teal:#5af8e8;
+  --road:#1e2235;--road-edge:#2a3050;--dash:rgba(255,255,255,0.15);
+  --r:8px;--r-lg:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh}
+
+.page{max-width:900px;margin:0 auto;padding:40px 24px 80px}
+
+.page-header{text-align:center;margin-bottom:36px}
+h1{font-size:34px;font-weight:700;letter-spacing:-1px;margin-bottom:8px;background:linear-gradient(135deg,#fff 30%,#555);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sub{font-size:14px;color:var(--text2)}
+
+.input-panel{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;margin-bottom:28px}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.field label{display:block;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px}
+.field input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:9px 12px;font-size:13px;font-family:'JetBrains Mono',monospace;color:var(--text);outline:none;transition:border-color .15s}
+.field input:focus{border-color:var(--green)}
+.field input::placeholder{color:var(--text3)}
+.gen-btn{width:100%;padding:11px;background:var(--green);border:none;border-radius:var(--r);font-size:14px;font-weight:700;font-family:'Inter',sans-serif;color:#000;cursor:pointer;transition:all .15s}
+.gen-btn:hover{background:#00b872;box-shadow:0 0 28px rgba(0,208,132,0.25)}
+.gen-btn:disabled{background:#0a3d26;color:#1a6b42;cursor:not-allowed;box-shadow:none}
+.footnote{text-align:center;font-size:11px;color:var(--text3);margin-top:8px}
+.footnote a{color:var(--green);text-decoration:none}
+
+.err{background:rgba(255,85,85,0.07);border:1px solid rgba(255,85,85,0.2);border-radius:var(--r);padding:11px 15px;font-size:13px;color:#ff9999;margin-bottom:18px;display:none}
+.loading{text-align:center;padding:50px 0;display:none}
+.spinner{width:30px;height:30px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lmsg{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+
+.output{display:none}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:28px}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;text-align:center}
+.stat-n{font-size:24px;font-weight:700;letter-spacing:-.5px;line-height:1;margin-bottom:3px}
+.stat-l{font-size:11px;color:var(--text2)}
+.green{color:var(--green)}.amber{color:var(--amber)}.red{color:var(--red)}
+
+/* ROAD */
+.road-section{position:relative;margin-bottom:0}
+.road-intro{font-size:12px;color:var(--text3);text-align:center;margin-bottom:16px;font-family:'JetBrains Mono',monospace}
+.road-canvas{width:100%;display:block}
+
+/* PHASE POPUP */
+.phase-popup{
+  background:var(--bg2);border:1px solid var(--border3);border-radius:14px;
+  margin:0 0 0 0;overflow:hidden;
+  animation:slideIn .2s ease;
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.popup-header{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border)}
+.popup-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.popup-name{font-size:15px;font-weight:600;flex:1}
+.popup-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:0 4px;line-height:1}
+.popup-close:hover{color:var(--text)}
+.popup-meta{display:flex;gap:16px;padding:10px 18px;background:var(--bg3);font-size:12px;color:var(--text2);border-bottom:1px solid var(--border)}
+.popup-meta span{display:flex;align-items:center;gap:4px}
+.popup-badges{display:flex;gap:6px}
+.badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px}
+.b-feat{background:rgba(0,208,132,0.1);color:var(--green)}
+.b-fix{background:rgba(255,85,85,0.1);color:#ff9999}
+.b-ref{background:rgba(77,159,255,0.1);color:var(--blue)}
+.b-chore{background:rgba(145,145,164,0.1);color:var(--text2)}
+.b-docs{background:rgba(255,184,77,0.1);color:var(--amber)}
+.status-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px}
+.s-active{background:rgba(0,208,132,0.1);color:var(--green)}
+.s-done{background:rgba(145,145,164,0.1);color:var(--text2)}
+.s-abandoned{background:rgba(255,85,85,0.1);color:var(--red)}
+
+/* SUB ROAD */
+.sub-road{padding:16px 18px}
+.sub-road-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:12px}
+.sub-road-wrap{position:relative;padding-left:20px}
+.sub-road-line{position:absolute;left:6px;top:0;bottom:0;width:2px;background:linear-gradient(to bottom,var(--green),var(--blue),var(--purple));border-radius:1px;opacity:0.4}
+.sub-item{position:relative;display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.sub-item:last-child{margin-bottom:0}
+.sub-node{width:12px;height:12px;border-radius:50%;flex-shrink:0;margin-left:-20px;z-index:1;position:relative;margin-top:2px;border:2px solid var(--bg2)}
+.sub-content{flex:1;background:var(--bg3);border-radius:var(--r);padding:8px 11px;border:1px solid var(--border)}
+.sub-tag-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.ctag{font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;padding:1px 6px;border-radius:4px}
+.t-feat{background:rgba(0,208,132,0.1);color:var(--green)}
+.t-fix{background:rgba(255,85,85,0.1);color:#ff9999}
+.t-refactor{background:rgba(77,159,255,0.1);color:var(--blue)}
+.t-docs{background:rgba(255,184,77,0.1);color:var(--amber)}
+.t-chore{background:rgba(145,145,164,0.1);color:var(--text2)}
+.t-other{background:rgba(167,139,250,0.1);color:var(--purple)}
+.sub-date{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-left:auto}
+.sub-msg{font-size:12px;color:var(--text2);line-height:1.4}
+.sub-more{font-size:11px;color:var(--text3);text-align:center;padding:6px 0;font-family:'JetBrains Mono',monospace}
+
+/* INSIGHTS ROW */
+.insights-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
+.ins-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px}
+.ins-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:12px}
+.type-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.type-bar{flex:1;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.type-fill{height:100%;border-radius:2px}
+.type-pct{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text2);width:50px;text-align:right;flex-shrink:0}
+.contrib-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.avatar{width:26px;height:26px;border-radius:50%;background:var(--green-dim);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--green);flex-shrink:0;border:1px solid rgba(0,208,132,0.2)}
+.cname{flex:1;font-size:12px;color:var(--text)}
+.ccount{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text2)}
+
+@media(max-width:600px){
+  .fields{grid-template-columns:1fr}
+  .stats{grid-template-columns:repeat(3,1fr)}
+  .insights-row{grid-template-columns:1fr}
+  h1{font-size:26px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;opacity:0.6">
+      <div style="width:26px;height:26px;background:var(--green);border-radius:6px;display:flex;align-items:center;justify-content:center">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="#000"><path d="M7 1L9 5H13L9.5 8L11 12L7 9.5L3 12L4.5 8L1 5H5Z"/></svg>
+      </div>
+      <span style="font-size:13px;font-weight:600;letter-spacing:0.02em;color:var(--text2)">Roadmap Generator</span>
+    </div>
+    <h1>Your commits,<br>turned into a roadmap.</h1>
+    <p class="sub">Reverse-engineer your project history into phases, timelines, and insights.</p>
+  </div>
+
+  <div class="input-panel">
+    <div class="fields">
+      <div class="field"><label>Repository</label><input type="text" id="repo" placeholder="owner/repo"/></div>
+      <div class="field"><label>GitHub Token</label><input type="password" id="token" placeholder="ghp_xxxxxxxxxxxx"/></div>
+    </div>
+    <button class="gen-btn" id="btn" onclick="go()">Generate Roadmap</button>
+    <p class="footnote">Token needs Contents: Read-only. <a href="https://github.com/settings/tokens/new?scopes=repo&description=Roadmap" target="_blank">Create one →</a></p>
+  </div>
+
+  <div class="err" id="err"></div>
+  <div class="loading" id="loading"><div class="spinner"></div><p class="lmsg" id="lmsg">Fetching commits...</p></div>
+
+  <div class="output" id="out">
+    <div class="stats" id="stats"></div>
+    <div class="road-section" id="road-section"></div>
+    <div class="insights-row" id="insights"></div>
+  </div>
+</div>
+
+<script>
+const COLORS=['#00d084','#4d9fff','#a78bfa','#ffb84d','#ff5555','#ff79c6','#5af8e8','#ff9f43','#c084fc','#34d399','#60a5fa','#fbbf24','#f472b6','#38bdf8','#4ade80'];
+const TYPE_COLORS={feat:'#00d084',fix:'#ff5555',refactor:'#4d9fff',docs:'#ffb84d',chore:'#6b7280',other:'#a78bfa'};
+
+const DOMAINS=[
+  {re:/dsl|compiler|lexer|parser|ast|token/i,n:'DSL Compiler'},
+  {re:/auth|login|session|jwt|oauth|signup/i,n:'Authentication'},
+  {re:/ui|component|design|style|css|layout/i,n:'UI Components'},
+  {re:/api|endpoint|route|server|express/i,n:'API Layer'},
+  {re:/database|schema|migration|postgres|sql/i,n:'Database'},
+  {re:/test|spec|coverage|jest|vitest/i,n:'Testing'},
+  {re:/deploy|ci|docker|infra|pipeline|action/i,n:'Infrastructure'},
+  {re:/kpi|metric|chart|graph|visual|dashboard/i,n:'Data Visualization'},
+  {re:/runtime|render|host|widget|tool/i,n:'Runtime Engine'},
+  {re:/generation|llm|ai|prompt|model/i,n:'AI Generation'},
+  {re:/init|setup|scaffold|bootstrap|initial/i,n:'Project Setup'},
+  {re:/permission|role|access|security/i,n:'Permissions'},
+  {re:/mobile|native|pwa|ios|android/i,n:'Mobile'},
+  {re:/rich|component|kpi|banner|tabs/i,n:'Rich Components'},
+  {re:/i18n|locale|translat|language/i,n:'Internationalization'},
+  {re:/performance|optim|cache|speed/i,n:'Performance'},
+];
+
+function cls(msg){
+  const m=msg.toLowerCase();
+  if(/^feat|^add |^implement|^build|^creat|^introduc/i.test(m))return'feat';
+  if(/^fix|^bug|^patch|^resolv|^hotfix/i.test(m))return'fix';
+  if(/^refactor|rename|restructur|clean|simplif|reorganiz|migrat/i.test(m))return'refactor';
+  if(/^docs?|readme|document|comment/i.test(m))return'docs';
+  if(/^chore|^ci|^build|depend|package|version|bump|release/i.test(m))return'chore';
+  return'other';
+}
+
+function pname(msg,branch){
+  if(branch&&branch!=='main'&&branch!=='master'&&branch!=='HEAD'){
+    let n=branch.replace(/^(feat|fix|feature|hotfix|chore|release|dev)\//i,'').replace(/[-_]/g,' ');
+    return n.charAt(0).toUpperCase()+n.slice(1);
+  }
+  for(const d of DOMAINS){if(d.re.test(msg))return d.n;}
+  return'General';
+}
+
+function buildPhases(commits){
+  const raw=commits.map(c=>({
+    sha:c.sha,msg:c.commit.message.split('\n')[0],
+    date:c.commit.author.date,author:c.commit.author.name,
+    branch:c.branch||'main',type:cls(c.commit.message.split('\n')[0])
+  }));
+  const groups=[];let cur=null;
+  raw.forEach(r=>{
+    const name=pname(r.msg,r.branch);
+    if(!cur||cur.name!==name){if(cur)groups.push(cur);cur={name,branch:r.branch,items:[],start:r.date,end:r.date};}
+    cur.items.push(r);cur.end=r.date;
+  });
+  if(cur)groups.push(cur);
+  const merged=[];
+  groups.forEach(g=>{
+    const last=merged[merged.length-1];
+    if(last&&last.name===g.name){last.items.push(...g.items);last.end=g.end;}
+    else merged.push(g);
+  });
+  const now=Date.now();
+  return merged.slice(0,14).map((g,i)=>{
+    const daysSince=Math.round((now-new Date(g.end))/86400000);
+    const isMain=g.branch==='main'||g.branch==='master';
+    let status='done';
+    if(daysSince<7)status='active';
+    else if(!isMain&&daysSince>60&&g.items.length<5)status='abandoned';
+    return{...g,color:COLORS[i%COLORS.length],status,idx:i};
+  });
+}
+
+function fmtD(d){return new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'});}
+function dur(a,b){
+  const d=Math.round(Math.abs(new Date(b)-new Date(a))/86400000);
+  if(!d)return'1d';if(d<7)return d+'d';if(d<30)return Math.round(d/7)+'w';return Math.round(d/30)+'mo';
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function go(){
+  const repo=document.getElementById('repo').value.trim();
+  const token=document.getElementById('token').value.trim();
+  const btn=document.getElementById('btn');
+  if(!repo||!repo.includes('/'))return showErr('Enter repo as owner/repo');
+  if(!token)return showErr('Enter your GitHub token');
+  document.getElementById('err').style.display='none';
+  document.getElementById('out').style.display='none';
+  document.getElementById('loading').style.display='block';
+  btn.disabled=true;
+  const h={'Authorization':'token '+token,'Accept':'application/vnd.github.v3+json'};
+  try{
+    document.getElementById('lmsg').textContent='Fetching commits...';
+    const pages=[];
+    for(let p=1;p<=5;p++){
+      const r=await fetch(`https://api.github.com/repos/${repo}/commits?per_page=100&page=${p}`,{headers:h});
+      if(!r.ok){const e=await r.json();throw new Error(e.message||'GitHub error '+r.status);}
+      const d=await r.json();pages.push(...d);if(d.length<100)break;
+    }
+    // Reverse so oldest commits come first (left side of road = beginning of project)
+    pages.reverse();
+    document.getElementById('lmsg').textContent='Fetching branches...';
+    const br=await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`,{headers:h});
+    const branches=br.ok?await br.json():[];
+    document.getElementById('lmsg').textContent='Mapping branches...';
+    const brMap={};
+    await Promise.allSettled(branches.slice(0,12).map(async b=>{
+      const r=await fetch(`https://api.github.com/repos/${repo}/commits?sha=${b.name}&per_page=50`,{headers:h});
+      if(r.ok){const bc=await r.json();bc.forEach(c=>{if(!brMap[c.sha])brMap[c.sha]=b.name;});}
+    }));
+    const enriched=pages.map(c=>({...c,branch:brMap[c.sha]||'main'}));
+    // enriched is already oldest-first after the reverse above
+    const phases=buildPhases(enriched);
+    const types={};enriched.forEach(c=>{const t=cls(c.commit.message.split('\n')[0]);types[t]=(types[t]||0)+1;});
+    const contribs=[...new Set(enriched.map(c=>c.commit.author.name))];
+    const firstDate=enriched[0]?.commit.author.date;
+    const lastDate=enriched[enriched.length-1]?.commit.author.date;
+    const totalDays=Math.max(Math.round(Math.abs(new Date(lastDate)-new Date(firstDate))/86400000),1);
+    window._roadmapData={phases,commits:enriched,types,contribs,totalDays};
+    render({phases,commits:enriched,types,contribs,totalDays});
+    document.getElementById('loading').style.display='none';
+    document.getElementById('out').style.display='block';
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    btn.disabled=false;showErr(e.message);
+  }
+}
+
+function showErr(msg){
+  const el=document.getElementById('err');el.textContent=msg;el.style.display='block';
+  document.getElementById('btn').disabled=false;
+}
+
+function render({phases,commits,types,contribs,totalDays}){
+  const active=phases.filter(p=>p.status==='active').length;
+  const abandoned=phases.filter(p=>p.status==='abandoned').length;
+  const velocity=Math.round(commits.length/(totalDays)*7);
+
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="stat-n">${commits.length}</div><div class="stat-l">Commits</div></div>
+    <div class="stat"><div class="stat-n">${phases.length}</div><div class="stat-l">Phases</div></div>
+    <div class="stat"><div class="stat-n ${active>0?'green':''}">${active}</div><div class="stat-l">Active</div></div>
+    <div class="stat"><div class="stat-n ${abandoned>0?'amber':'green'}">${abandoned}</div><div class="stat-l">Abandoned</div></div>
+    <div class="stat"><div class="stat-n">${velocity}</div><div class="stat-l">Commits/wk</div></div>
+  `;
+
+  drawRoad(phases);
+  renderInsights(types,commits,contribs);
+  document.getElementById('btn').disabled=false;
+}
+
+function drawRoad(phases){
+  const N=phases.length;
+  const W=900;
+  const STEP=160;
+  const H=420;
+  const CY=H/2;
+  const AMP=120;
+
+  // Build spine points
+  const pts=phases.map((p,i)=>{
+    const x=40+i*STEP;
+    const y=CY+Math.sin(i*0.9)*AMP;
+    return{x,y,p};
+  });
+
+  // Build bezier path
+  let path=`M ${pts[0].x} ${pts[0].y}`;
+  for(let i=0;i<pts.length-1;i++){
+    const cx=(pts[i].x+pts[i+1].x)/2;
+    path+=` C ${cx} ${pts[i].y} ${cx} ${pts[i+1].y} ${pts[i+1].x} ${pts[i+1].y}`;
+  }
+
+  // Extend canvas width to fit all phases
+  const svgW=pts[pts.length-1].x+100;
+
+  let svg=`<svg id="roadsvg" viewBox="0 0 ${svgW} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:${svgW}px;min-width:${svgW}px;height:${H}px;display:block;overflow:visible">`;
+
+  // Road shadow
+  svg+=`<path d="${path}" fill="none" stroke="rgba(30,34,53,0.6)" stroke-width="44" stroke-linecap="round"/>`;
+  // Road body
+  svg+=`<path d="${path}" fill="none" stroke="#1e2235" stroke-width="38" stroke-linecap="round"/>`;
+  // Road edge lines
+  svg+=`<path d="${path}" fill="none" stroke="#2a3050" stroke-width="38" stroke-linecap="round" stroke-dasharray="1 0" style="stroke-dashoffset:0"/>`;
+  // Center dashes
+  svg+=`<path id="dashpath" d="${path}" fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="16 18"/>`;
+
+  // START label
+  svg+=`<text x="${pts[0].x}" y="${pts[0].y+52}" text-anchor="middle" font-size="11" fill="#55555f" font-family="JetBrains Mono,monospace">START</text>`;
+
+  // Pins
+  pts.forEach(({x,y,p},i)=>{
+    const isActive=p.status==='active';
+    const isAbandoned=p.status==='abandoned';
+    const col=p.color;
+    const pinId=`pin-${i}`;
+
+    // Pin shadow
+    svg+=`<ellipse cx="${x}" cy="${y+24}" rx="7" ry="3" fill="rgba(0,0,0,0.4)"/>`;
+
+    // Pin body (teardrop shape)
+    svg+=`<g id="${pinId}" style="cursor:pointer" onclick="togglePhase(${i},${x},${y})">`;
+    // outer glow for active
+    if(isActive){
+      svg+=`<circle cx="${x}" cy="${y-24}" r="24" fill="${col}" opacity="0.15"><animate attributeName="r" values="20;28;20" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.15;0.05;0.15" dur="2s" repeatCount="indefinite"/></circle>`;
+    }
+    // pin circle
+    svg+=`<circle cx="${x}" cy="${y-24}" r="18" fill="${isAbandoned?'#1c1c1f':col}" stroke="${col}" stroke-width="${isAbandoned?'1.5':'0'}" opacity="${isAbandoned?'1':'0.95'}"/>`;
+    // pin tail
+    svg+=`<path d="M ${x-8} ${y-10} Q ${x} ${y+8} ${x+8} ${y-10}" fill="${isAbandoned?'#1c1c1f':col}" stroke="${col}" stroke-width="${isAbandoned?'1.5':'0'}"/>`;
+    // white dot in center
+    svg+=`<circle cx="${x}" cy="${y-24}" r="7" fill="${isAbandoned?col:'rgba(255,255,255,0.9)'}"/>`;
+    // number
+    svg+=`<text x="${x}" y="${y-20}" text-anchor="middle" font-size="11" font-weight="700" fill="${isAbandoned?'rgba(255,255,255,0.3)':'rgba(0,0,0,0.7)'}" font-family="Inter,sans-serif">${i+1}</text>`;
+    svg+=`</g>`;
+
+    // Label below pin — alternate above/below to avoid overlap
+    const above=i%2===1;
+    const ly=above?y-62:y+50;
+    const nameShort=p.name.length>16?p.name.slice(0,15)+'…':p.name;
+    svg+=`<text x="${x}" y="${ly}" text-anchor="middle" font-size="13" font-weight="600" fill="${isAbandoned?'#55555f':col}" font-family="Inter,sans-serif">${esc(nameShort)}</text>`;
+    svg+=`<text x="${x}" y="${ly+(above?-15:16)}" text-anchor="middle" font-size="11" fill="#55555f" font-family="JetBrains Mono,monospace">${p.items.length} commits</text>`;
+  });
+
+  // END flag
+  if(pts.length>0){
+    const last=pts[pts.length-1];
+    svg+=`<text x="${last.x}" y="${last.y-52}" text-anchor="middle" font-size="11" fill="#55555f" font-family="JetBrains Mono,monospace">NOW</text>`;
+  }
+
+  svg+=`</svg>`;
+
+  document.getElementById('road-section').innerHTML=`
+    <p class="road-intro">Click any pin to explore that phase ↓</p>
+    <div id="road-scroll" style="overflow-x:auto;padding:8px 0;cursor:grab;user-select:none">${svg}</div>
+    <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace">← scroll to explore the full journey →</div>
+    <div id="phase-detail"></div>
+  `;
+
+  // Reset scroll to start (left)
+  const scrollEl = document.getElementById('road-scroll');
+  scrollEl.scrollLeft = 0;
+
+  // Drag to scroll
+  let isDown=false,startX=0,scrollStart=0;
+  scrollEl.addEventListener('mousedown',e=>{isDown=true;startX=e.pageX-scrollEl.offsetLeft;scrollStart=scrollEl.scrollLeft;scrollEl.style.cursor='grabbing';});
+  scrollEl.addEventListener('mouseleave',()=>{isDown=false;scrollEl.style.cursor='grab';});
+  scrollEl.addEventListener('mouseup',()=>{isDown=false;scrollEl.style.cursor='grab';});
+  scrollEl.addEventListener('mousemove',e=>{if(!isDown)return;e.preventDefault();const x=e.pageX-scrollEl.offsetLeft;scrollEl.scrollLeft=scrollStart-(x-startX);});
+}
+
+let openPhaseIdx=-1;
+
+function togglePhase(idx,x,y){
+  const detail=document.getElementById('phase-detail');
+  if(openPhaseIdx===idx){openPhaseIdx=-1;detail.innerHTML='';return;}
+  openPhaseIdx=idx;
+  const p=window._roadmapData.phases[idx];
+  renderPhaseDetail(p,detail);
+  detail.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function renderPhaseDetail(p,container){
+  const feats=p.items.filter(x=>x.type==='feat').length;
+  const fixes=p.items.filter(x=>x.type==='fix').length;
+  const refs=p.items.filter(x=>x.type==='refactor').length;
+  const chores=p.items.filter(x=>x.type==='chore').length;
+  const docs=p.items.filter(x=>x.type==='docs').length;
+
+  const badges=[
+    feats?`<span class="badge b-feat">${feats} feat</span>`:'',
+    fixes?`<span class="badge b-fix">${fixes} fix</span>`:'',
+    refs?`<span class="badge b-ref">${refs} refactor</span>`:'',
+    docs?`<span class="badge b-docs">${docs} docs</span>`:'',
+    chores?`<span class="badge b-chore">${chores} chore</span>`:'',
+  ].filter(Boolean).join('');
+
+  const statusCls={active:'s-active',done:'s-done',abandoned:'s-abandoned'}[p.status];
+
+  const subItems=p.items.slice(0,25).map(item=>`
+    <div class="sub-item">
+      <div class="sub-node" style="background:${TYPE_COLORS[item.type]||'#888'}"></div>
+      <div class="sub-content">
+        <div class="sub-tag-row">
+          <span class="ctag t-${item.type}">${item.type}</span>
+          <span class="sub-date">${new Date(item.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>
+        </div>
+        <div class="sub-msg">${esc(item.msg)}</div>
+      </div>
+    </div>`).join('');
+
+  const more=p.items.length>25?`<div class="sub-more">+${p.items.length-25} more commits in this phase</div>`:'';
+
+  container.innerHTML=`
+    <div class="phase-popup" style="border-color:${p.color}33;margin-top:16px">
+      <div class="popup-header">
+        <div class="popup-dot" style="background:${p.color}"></div>
+        <span class="popup-name">${esc(p.name)}</span>
+        <span class="status-badge ${statusCls}">${p.status}</span>
+        <button class="popup-close" onclick="togglePhase(${p.idx},-1,-1)">×</button>
+      </div>
+      <div class="popup-meta">
+        <span>📅 ${fmtD(p.start)} → ${fmtD(p.end)}</span>
+        <span>⏱ ${dur(p.start,p.end)}</span>
+        <span>📝 ${p.items.length} commits</span>
+        <span>🌿 ${esc(p.branch)}</span>
+        <div class="popup-badges" style="margin-left:auto">${badges}</div>
+      </div>
+      <div class="sub-road">
+        <div class="sub-road-title">What happened in this phase</div>
+        <div class="sub-road-wrap">
+          <div class="sub-road-line"></div>
+          ${subItems}
+          ${more}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderInsights(types,commits,contribs){
+  const tot=Object.values(types).reduce((a,b)=>a+b,0);
+  const typeRows=Object.entries(types).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`
+    <div class="type-row">
+      <span class="ctag t-${t}" style="width:62px;text-align:center">${t}</span>
+      <div class="type-bar"><div class="type-fill" style="width:${Math.round(n/tot*100)}%;background:${TYPE_COLORS[t]||'#888'}"></div></div>
+      <span class="type-pct">${n} (${Math.round(n/tot*100)}%)</span>
+    </div>`).join('');
+
+  const contribRows=contribs.slice(0,8).map(c=>{
+    const init=c.split(' ').map(w=>w[0]||'').join('').toUpperCase().slice(0,2)||'?';
+    const n=commits.filter(x=>x.commit.author.name===c).length;
+    return`<div class="contrib-row"><div class="avatar">${esc(init)}</div><span class="cname">${esc(c)}</span><span class="ccount">${n}</span></div>`;
+  }).join('');
+
+  document.getElementById('insights').innerHTML=`
+    <div class="ins-card">
+      <div class="ins-title">Commit breakdown</div>
+      ${typeRows}
+    </div>
+    <div class="ins-card">
+      <div class="ins-title">Contributors</div>
+      ${contribRows}
+    </div>`;
+}
+</script>
+</body>
+</html>
