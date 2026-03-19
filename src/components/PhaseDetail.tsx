@@ -46,9 +46,11 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
     .slice(0, 3);
 
   const statusCls = `s-${phase.status}`;
-  const groupingLabel = analysis?.groupingLabel === 'branch'
-    ? 'Branch patterns'
-    : (analysis?.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals');
+  const groupingLabel = analysis?.groupingLabel === 'work-items'
+    ? 'Semantic work items'
+    : (analysis?.groupingLabel === 'branch'
+      ? 'Branch patterns'
+      : (analysis?.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals'));
 
   const totalItems = phase.items.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
@@ -70,8 +72,9 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         <span><Calendar size={12} className="meta-icon" />{fmtDate(phase.start)} <ArrowRight size={12} className="meta-icon" /> {fmtDate(phase.end)}</span>
         <span><Clock size={12} className="meta-icon" />{dur(phase.start, phase.end)}</span>
         <span><FileText size={12} className="meta-icon" />{phase.items.length} commits</span>
-        <span>
+        <span className="meta-branch">
           <GitBranch size={12} className="meta-icon" />
+          <span className="meta-branch-label">Branch hint:</span>
           {repo ? (
             <a className="meta-link" href={`https://github.com/${repo}/tree/${phase.branch}`} target="_blank" rel="noreferrer">
               {phase.branch}
@@ -157,6 +160,8 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         .meta-icon { color: var(--text3); }
         .meta-link { color: var(--text); text-decoration: none }
         .meta-link:hover { text-decoration: underline }
+        .meta-branch { color: var(--text3); }
+        .meta-branch-label { color: var(--text3); }
         .popup-badges { display: flex; gap: 6px }
         .popup-contrib { padding: 8px 18px; background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
         .popup-reasons { padding: 10px 18px; background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text2); display: flex; flex-direction: column; gap: 6px }
