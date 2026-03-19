@@ -51,12 +51,134 @@ interface GitHubPullFile {
   filename: string;
 }
 
+interface GitHubPullCommit {
+  sha: string;
+}
+
+interface GitHubRelease {
+  tag_name?: string;
+  name?: string;
+  published_at?: string | null;
+}
+
+interface GitHubTag {
+  name: string;
+}
+
 export interface PullRequestMeta {
   number: number;
   title: string;
   body?: string;
   files?: string[];
   mergedAt?: string | null;
+}
+
+export interface PullRequestInfo {
+  number: number;
+  title: string;
+  body?: string;
+  mergedAt?: string | null;
+}
+
+export interface ReleaseMeta {
+  tag: string;
+  name?: string;
+  publishedAt?: string | null;
+  source: 'release' | 'tag';
+}
+
+export async function fetchAssociatedPullRequests(
+  repo: string,
+  headers: Record<string, string>,
+  sha: string
+) {
+  const pullHeaders = {
+    ...headers,
+    Accept: 'application/vnd.github.groot-preview+json'
+  };
+  const r = await fetch(`https://api.github.com/repos/${repo}/commits/${sha}/pulls`, { headers: pullHeaders });
+  if (!r.ok) return [] as PullRequestInfo[];
+  const pulls = (await r.json()) as GitHubPull[];
+  return (pulls || [])
+    .filter(p => p?.number && p?.title)
+    .map(p => ({
+      number: p.number,
+      title: p.title,
+      body: p.body,
+      mergedAt: p.merged_at ?? null
+    }));
+}
+
+export async function fetchPullRequestDetails(
+  repo: string,
+  headers: Record<string, string>,
+  number: number
+): Promise<PullRequestInfo | null> {
+  const r = await fetch(`https://api.github.com/repos/${repo}/pulls/${number}`, { headers });
+  if (!r.ok) return null;
+  const pr = (await r.json()) as GitHubPull;
+  if (!pr?.number || !pr?.title) return null;
+  return {
+    number: pr.number,
+    title: pr.title,
+    body: pr.body,
+    mergedAt: pr.merged_at ?? null
+  };
+}
+
+export async function fetchPullRequestFiles(
+  repo: string,
+  headers: Record<string, string>,
+  number: number,
+  options?: { maxFiles?: number }
+): Promise<string[]> {
+  const maxFiles = options?.maxFiles ?? 200;
+  const r = await fetch(`https://api.github.com/repos/${repo}/pulls/${number}/files?per_page=${maxFiles}`, { headers });
+  if (!r.ok) return [];
+  const files = (await r.json()) as GitHubPullFile[];
+  return (files || []).map(f => f.filename).filter(Boolean);
+}
+
+export async function fetchPullRequestCommits(
+  repo: string,
+  headers: Record<string, string>,
+  number: number,
+  options?: { maxCommits?: number }
+): Promise<string[]> {
+  const maxCommits = options?.maxCommits ?? 200;
+  const r = await fetch(`https://api.github.com/repos/${repo}/pulls/${number}/commits?per_page=${maxCommits}`, { headers });
+  if (!r.ok) return [];
+  const commits = (await r.json()) as GitHubPullCommit[];
+  return (commits || []).map(c => c.sha).filter(Boolean);
+}
+
+export async function fetchTagOrRelease(
+  repo: string,
+  headers: Record<string, string>
+): Promise<ReleaseMeta | null> {
+  const releaseRes = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=1`, { headers });
+  if (releaseRes.ok) {
+    const releases = (await releaseRes.json()) as GitHubRelease[];
+    const release = releases?.[0];
+    if (release?.tag_name) {
+      return {
+        tag: release.tag_name,
+        name: release.name,
+        publishedAt: release.published_at ?? null,
+        source: 'release'
+      };
+    }
+  }
+
+  const tagRes = await fetch(`https://api.github.com/repos/${repo}/tags?per_page=1`, { headers });
+  if (!tagRes.ok) return null;
+  const tags = (await tagRes.json()) as GitHubTag[];
+  const tag = tags?.[0];
+  if (!tag?.name) return null;
+  return {
+    tag: tag.name,
+    source: 'tag'
+  };
 }
 
 const toGitHubError = async (r: Response, hasToken: boolean) => {
