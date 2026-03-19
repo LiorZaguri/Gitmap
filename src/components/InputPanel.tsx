@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { normalizeRepoInput } from '../utils/normalizeRepo';
 
 interface InputPanelProps {
   onGenerate: (repo: string, token: string) => void;
@@ -11,19 +12,8 @@ export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading, err
   const [token, setToken] = useState('');
   const [repoError, setRepoError] = useState<string | null>(null);
 
-  const normalizeRepo = (raw: string) => {
-    const trimmed = raw.trim().replace(/\/+$/, '');
-    if (!trimmed) return { value: '', error: 'Please enter a repository' };
-
-    const urlMatch = trimmed.match(/^https?:\/\/github\.com\/([^/]+\/[^/]+)$/i);
-    const value = urlMatch ? urlMatch[1] : trimmed;
-    const valid = /^[\w.-]+\/[\w.-]+$/.test(value);
-    if (!valid) return { value, error: 'Repo must be owner/repo or a GitHub URL' };
-    return { value, error: null };
-  };
-
   const handleGenerate = () => {
-    const { value, error } = normalizeRepo(repo);
+    const { value, error } = normalizeRepoInput(repo);
     setRepoError(error);
     if (error) {
       return;
@@ -46,7 +36,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading, err
               if (repoError) setRepoError(null);
             }}
             onBlur={() => {
-              const { value, error } = normalizeRepo(repo);
+              const { value, error } = normalizeRepoInput(repo);
               setRepoError(error);
               if (!error && value !== repo) setRepo(value);
             }}
