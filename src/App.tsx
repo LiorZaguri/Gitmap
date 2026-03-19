@@ -39,9 +39,7 @@ function App() {
         <p style={{ fontSize: '14px', color: 'var(--text2)' }}>Reverse-engineer your project history into phases, timelines, and insights.</p>
       </header>
 
-      <InputPanel onGenerate={generate} loading={loading} />
-
-      {error && <div className="error-box">{error}</div>}
+      <InputPanel onGenerate={generate} loading={loading} error={error} />
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '50px 0' }}>

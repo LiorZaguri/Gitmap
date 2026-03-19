@@ -37,22 +37,44 @@ export function useGitHub() {
     totalDays: number;
   } | null>(null);
 
+  const toGitHubError = async (r: Response, hasToken: boolean) => {
+    const remaining = r.headers.get('x-ratelimit-remaining');
+    if (r.status === 403 && remaining === '0') {
+      return 'GitHub rate limit reached. Try again later or add a token.';
+    }
+    if (r.status === 401) return 'Invalid or expired GitHub token.';
+    if (r.status === 404) {
+      return hasToken
+        ? 'Repo not found.'
+        : 'Repo not found or private. Add a token to access private repos.';
+    }
+    if (r.status === 403) {
+      return hasToken
+        ? 'Access denied. Check repo permissions for this token.'
+        : 'Private repo. Add a token to access it.';
+    }
+    const e = await r.json().catch(() => ({} as { message?: string }));
+    return e.message || `GitHub error ${r.status}`;
+  };
+
   const generate = useCallback(async (repo: string, token: string) => {
     setLoading(true);
     setError(null);
-    const h = {
-      'Authorization': `token ${token}`,
+    const tokenValue = token.trim();
+    const hasToken = tokenValue.length > 0;
+    const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json'
     };
+    if (hasToken) headers.Authorization = `token ${tokenValue}`;
 
     try {
       // 1. Fetch commits (up to 5 pages)
       const pages: GitHubCommit[] = [];
       for (let p = 1; p <= 5; p++) {
-        const r = await fetch(`https://api.github.com/repos/${repo}/commits?per_page=100&page=${p}`, { headers: h });
+        const r = await fetch(`https://api.github.com/repos/${repo}/commits?per_page=100&page=${p}`, { headers });
         if (!r.ok) {
-          const e = await r.json().catch(() => ({} as { message?: string }));
-          throw new Error(e.message || `GitHub error ${r.status}`);
+          const msg = await toGitHubError(r, hasToken);
+          throw new Error(msg);
         }
         const d = (await r.json()) as GitHubCommit[];
         pages.push(...d);
@@ -70,14 +92,25 @@ export function useGitHub() {
         c.commit.author.name
       );
       validCommits.reverse();
+      if (validCommits.length === 0) {
+        throw new Error('Repo has no commits to analyze.');
+      }
 
       // 2. Fetch repo and branches
-      const repoRes = await fetch(`https://api.github.com/repos/${repo}`, { headers: h });
-      const repoData = repoRes.ok ? ((await repoRes.json()) as GitHubRepo) : {};
+      const repoRes = await fetch(`https://api.github.com/repos/${repo}`, { headers });
+      if (!repoRes.ok) {
+        const msg = await toGitHubError(repoRes, hasToken);
+        throw new Error(msg);
+      }
+      const repoData = (await repoRes.json()) as GitHubRepo;
       const defaultBranch = repoData.default_branch || 'main';
 
-      const brRes = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, { headers: h });
-      const branches = brRes.ok ? ((await brRes.json()) as GitHubBranch[]) : [];
+      const brRes = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, { headers });
+      if (!brRes.ok) {
+        const msg = await toGitHubError(brRes, hasToken);
+        throw new Error(msg);
+      }
+      const branches = (await brRes.json()) as GitHubBranch[];
 
       // 3. Map branches to commits (Feature branches take priority over main)
       // Using Compare API to get ONLY unique commits per branch
@@ -92,7 +125,7 @@ export function useGitHub() {
               // Compare API: gives commits in branch but NOT in default branch
               const r = await fetch(
                 `https://api.github.com/repos/${repo}/compare/${defaultBranch}...${b.name}`,
-                { headers: h }
+                { headers }
               );
               if (!r.ok) return;
               const data = (await r.json()) as GitHubCompare;

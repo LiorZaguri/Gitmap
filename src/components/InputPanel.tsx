@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 interface InputPanelProps {
   onGenerate: (repo: string, token: string) => void;
   loading: boolean;
+  error: string | null;
 }
 
-export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading }) => {
+export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading, error }) => {
   const [repo, setRepo] = useState(() => localStorage.getItem('gitmap_repo') ?? '');
   const [token, setToken] = useState('');
   const [repoError, setRepoError] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading }) =
 
   return (
     <div className="input-panel">
+      {error && <div className="error-box" style={{ marginBottom: '12px' }}>{error}</div>}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.08em' }}>Repository</label>
