@@ -69,7 +69,6 @@ export function buildPhases(
   }
 
   groups = refineGroupsBySemanticSignals(raw, groups, boundaryHints, pathDomains, pullRequests);
-  groups = applyFallbackGrouping(raw, groups, boundaryHints, pathDomains, pullRequests);
 
   const now = new Date().getTime();
   // Final conversion to Phase[] with status and color
@@ -164,40 +163,6 @@ function nameFromBranch(branch: string, commits: Commit[], context: { pathDomain
   return toTitleCase(baseName);
 }
 
-function topicFromCommit(
-  commit: Commit,
-  pathDomains: Record<string, string>,
-  pullRequests: Record<string, PullRequestMeta>
-) {
-  if (commit.branch && !['main', 'master', 'HEAD'].includes(commit.branch)) {
-    const baseName = commit.branch
-      .replace(/^(feat|fix|feature|hotfix|chore|release|dev)\//i, '')
-      .replace(/[-_]/g, ' ')
-      .trim();
-    const normalized = baseName.toLowerCase();
-    const tooGeneric = !normalized || ['main', 'master', 'dev', 'release', 'feature', 'fix', 'chore'].includes(normalized);
-    if (!tooGeneric) return toTitleCase(baseName);
-  }
-
-  const msg = commit.msg.toLowerCase();
-  const scopeMatch = commit.msg.match(/\w+\(([^)]+)\):/);
-  const scope = scopeMatch?.[1]?.trim();
-  if (scope && scope.length >= 3) return toTitleCase(scope);
-
-  const pathDomain = pathDomains[commit.sha];
-  if (pathDomain) return toTitleCase(pathDomain);
-
-  const pr = pullRequests[commit.sha];
-  if (pr?.title) {
-    const title = normalizeTitle(pr.title);
-    if (title) return toTitleCase(title);
-  }
-
-  const domain = DOMAIN_MAP.find(d => d.re.test(msg));
-  if (domain) return domain.name;
-
-  return null;
-}
 
 function normalizeAuthor(author: string) {
   return author
@@ -493,83 +458,6 @@ function percentile(values: number[], p: number) {
   return sorted[idx];
 }
 
-function applyFallbackGrouping(
-  commits: Commit[],
-  groups: PhaseGroup[],
-  boundaryHints: number[],
-  pathDomains: Record<string, string>,
-  pullRequests: Record<string, PullRequestMeta>
-) {
-  if (commits.length === 0) return groups;
-  const first = new Date(commits[0].date).getTime();
-  const last = new Date(commits[commits.length - 1].date).getTime();
-  const totalDays = Math.max(Math.round(Math.abs(last - first) / 86400000), 1);
-  if (groups.length >= 2) return groups;
-  const substantial = commits.length >= 150 || totalDays >= 90;
-  if (!substantial) return groups;
-
-  const topicGroups = buildTopicGroups(commits, boundaryHints, pathDomains, pullRequests);
-  if (topicGroups.length > groups.length) {
-    return topicGroups;
-  }
-
-  const hinted = buildHintedGroups(commits, boundaryHints, { pathDomains, pullRequests });
-  if (hinted.length >= 2) {
-    return hinted.length >= groups.length ? hinted : groups;
-  }
-
-  const gapGroups = splitBySignificantGaps(commits, { pathDomains, pullRequests });
-  if (gapGroups.length > groups.length) return gapGroups;
-
-  return groups;
-}
-
-function buildTopicGroups(
-  commits: Commit[],
-  boundaryHints: number[],
-  pathDomains: Record<string, string>,
-  pullRequests: Record<string, PullRequestMeta>
-) {
-  const topics = commits.map(c => topicFromCommit(c, pathDomains, pullRequests));
-  const hintSet = new Set(boundaryHints);
-  const groups: PhaseGroup[] = [];
-  const window = 8;
-  const minHits = 3;
-  const minSize = 8;
-
-  let start = 0;
-  let currentTopic = topics[0] || null;
-
-  for (let i = 1; i < commits.length; i++) {
-    if (hintSet.has(i)) {
-      const slice = commits.slice(start, i);
-      if (slice.length) groups.push(makeGroup(slice, { pathDomains, pullRequests }));
-      start = i;
-      currentTopic = topics[i] || currentTopic;
-      continue;
-    }
-
-    const t = topics[i];
-    if (t && t !== currentTopic) {
-      let hits = 0;
-      for (let j = i; j < Math.min(commits.length, i + window); j++) {
-        if (topics[j] === t) hits += 1;
-      }
-      if (hits >= minHits) {
-        const slice = commits.slice(start, i);
-        if (slice.length) groups.push(makeGroup(slice, { pathDomains, pullRequests }));
-        start = i;
-        currentTopic = t;
-      }
-    }
-  }
-
-  const tail = commits.slice(start);
-  if (tail.length) groups.push(makeGroup(tail, { pathDomains, pullRequests }));
-
-  const compacted = mergeSmallGroups(groups, minSize, { pathDomains, pullRequests });
-  return mergeAdjacentSameName(compacted, { pathDomains, pullRequests });
-}
 
 function mergeSmallGroups(
   groups: PhaseGroup[],
@@ -623,87 +511,6 @@ function mergeAdjacentSameName(
   return merged;
 }
 
-function buildHintedGroups(
-  commits: Commit[],
-  boundaryHints: number[],
-  context?: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
-) {
-  if (boundaryHints.length === 0) return [];
-  const indices = [...new Set(boundaryHints)]
-    .filter(i => i > 0 && i < commits.length - 1)
-    .sort((a, b) => a - b);
-  if (indices.length === 0) return [];
-
-  const desired = Math.min(indices.length, Math.max(1, Math.round(indices.length * 0.6)));
-  const picked = pickEvenly(indices, desired);
-  if (picked.length === 0) return [];
-
-  const minSize = Math.max(12, Math.floor(commits.length / 10));
-  const filtered: number[] = [];
-  let last = 0;
-  for (const idx of picked) {
-    if (idx - last >= minSize) {
-      filtered.push(idx);
-      last = idx;
-    }
-  }
-  if (filtered.length === 0) return [];
-
-  const groups: PhaseGroup[] = [];
-  let start = 0;
-  for (const idx of filtered) {
-    const slice = commits.slice(start, idx);
-    if (slice.length) groups.push(makeGroup(slice, context || { pathDomains: {}, pullRequests: {} }));
-    start = idx;
-  }
-  const tail = commits.slice(start);
-  if (tail.length) groups.push(makeGroup(tail, context || { pathDomains: {}, pullRequests: {} }));
-  return groups;
-}
-
-function pickEvenly(indices: number[], desired: number) {
-  if (desired <= 0) return [];
-  if (indices.length <= desired) return indices;
-  const step = indices.length / (desired + 1);
-  const picked: number[] = [];
-  for (let i = 1; i <= desired; i++) {
-    const idx = Math.min(indices.length - 1, Math.floor(i * step));
-    picked.push(indices[idx]);
-  }
-  return [...new Set(picked)];
-}
-
-function splitBySignificantGaps(
-  commits: Commit[],
-  context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
-) {
-  if (commits.length < 2) return [];
-  const gaps: number[] = [];
-  for (let i = 1; i < commits.length; i++) {
-    const gap = Math.abs(new Date(commits[i].date).getTime() - new Date(commits[i - 1].date).getTime()) / 86400000;
-    gaps.push(gap);
-  }
-  const threshold = Math.max(7, percentile(gaps, 0.9));
-  const boundaries: number[] = [];
-  for (let i = 1; i < commits.length; i++) {
-    const gap = Math.abs(new Date(commits[i].date).getTime() - new Date(commits[i - 1].date).getTime()) / 86400000;
-    if (gap >= threshold) boundaries.push(i);
-  }
-  if (boundaries.length === 0) return [];
-
-  const minSize = Math.max(8, Math.floor(commits.length / 15));
-  const groups: PhaseGroup[] = [];
-  let start = 0;
-  for (const idx of boundaries) {
-    if (idx - start < minSize) continue;
-    const slice = commits.slice(start, idx);
-    if (slice.length) groups.push(makeGroup(slice, context));
-    start = idx;
-  }
-  const tail = commits.slice(start);
-  if (tail.length) groups.push(makeGroup(tail, context));
-  return groups.length > 1 ? groups : [];
-}
 
 function makeGroup(
   commits: Commit[],
