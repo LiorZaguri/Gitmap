@@ -9,6 +9,25 @@ export interface Commit {
   type: CommitType;
 }
 
+export type WorkItemKind = 'pull_request' | 'commit_window';
+
+export interface WorkItem {
+  kind: WorkItemKind;
+  title: string;
+  bodySummary?: string;
+  commitShas: string[];
+  changedFiles: string[];
+  pathDomains: string[];
+  labels: string[];
+  typesScopes: string[];
+  contributors: string[];
+  startDate: string;
+  endDate: string;
+  releaseFlags: string[];
+  sourceBranchHint?: string;
+  confidence: number;
+}
+
 export type PhaseStatus = 'active' | 'done' | 'abandoned';
 
 export interface Phase {

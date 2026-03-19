@@ -1,7 +1,5 @@
-import type { Commit } from '../types';
+import type { Commit, WorkItem, WorkItemKind } from '../types';
 import type { PullRequestMeta } from './github';
-
-export type WorkItemKind = 'pull_request' | 'commit_window';
 
 export interface WorkItemDraft {
   kind: WorkItemKind;
@@ -22,7 +20,7 @@ export function buildWorkItems(
   commits: Commit[],
   pullRequests: Record<string, PullRequestMeta>,
   options?: { windowSize?: number }
-): WorkItemDraft[] {
+): WorkItem[] {
   const windowSize = Math.max(1, options?.windowSize ?? DEFAULT_WINDOW);
   const items: WorkItemDraft[] = [];
   let current: WorkItemDraft | null = null;
@@ -84,5 +82,34 @@ export function buildWorkItems(
     items.push(current);
   }
 
-  return items.filter(item => item.commits.length > 0);
+  return items
+    .filter(item => item.commits.length > 0)
+    .map(item => toWorkItem(item));
+}
+
+function toWorkItem(item: WorkItemDraft): WorkItem {
+  const commits = item.commits;
+  const commitShas = commits.map(c => c.sha);
+  const contributors = [...new Set(commits.map(c => c.author).filter(Boolean))];
+  const startDate = commits[0]?.date ?? '';
+  const endDate = commits[commits.length - 1]?.date ?? startDate;
+  const sourceBranchHint = commits.find(c => c.branch)?.branch;
+  const bodySummary = item.pullRequest?.body?.trim();
+
+  return {
+    kind: item.kind,
+    title: item.title,
+    bodySummary,
+    commitShas,
+    changedFiles: item.pullRequest?.files ?? [],
+    pathDomains: [],
+    labels: [],
+    typesScopes: [],
+    contributors,
+    startDate,
+    endDate,
+    releaseFlags: [],
+    sourceBranchHint,
+    confidence: item.kind === 'pull_request' ? 0.6 : 0.3
+  };
 }

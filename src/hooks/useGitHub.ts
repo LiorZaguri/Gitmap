@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
-import type { Commit, Phase, CommitType, AnalysisMeta } from '../types';
+import type { Commit, Phase, CommitType, AnalysisMeta, WorkItem } from '../types';
 import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
 import { fetchGitHubSnapshot, fetchMergeCommitHints, fetchCommitPathDomains, fetchPullRequestMetadata, type PullRequestMeta } from '../utils/github';
 import { computeConfidence } from '../utils/analysisMeta';
-import { buildWorkItems, type WorkItemDraft } from '../utils/workItems';
+import { buildWorkItems } from '../utils/workItems';
 
 const COMMITS_PER_PAGE = 100;
 const MAX_PAGES = 5;
@@ -18,7 +18,7 @@ export function useGitHub() {
   const [data, setData] = useState<{
     repo: string;
     commits: Commit[];
-    workItems: WorkItemDraft[];
+    workItems: WorkItem[];
     phases: Phase[];
     types: Record<CommitType, number>;
     contribs: string[];
