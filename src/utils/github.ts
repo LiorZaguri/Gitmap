@@ -307,49 +307,67 @@ export async function fetchPullRequestMetadata(
   const selected = candidates.slice(-maxCommits);
   const prMap: Record<string, PullRequestMeta> = {};
   const filesCache = new Map<number, string[]>();
+  const prInfoCache = new Map<number, PullRequestInfo>();
+  const seenPrNumbers = new Set<number>();
 
-  const pullHeaders = {
-    ...headers,
-    Accept: 'application/vnd.github.groot-preview+json'
-  };
+  const queue = createRequestQueue(2);
 
   for (const c of selected) {
-    const r = await fetch(`https://api.github.com/repos/${repo}/commits/${c.sha}/pulls`, { headers: pullHeaders });
-    if (!r.ok) {
-      const remaining = r.headers.get('x-ratelimit-remaining');
-      if (r.status === 403 && remaining === '0') break;
-      continue;
-    }
-    const pulls = (await r.json()) as GitHubPull[];
+    const pulls = await queue(() => fetchAssociatedPullRequests(repo, headers, c.sha));
     if (!pulls || pulls.length === 0) continue;
     const pr = pulls[0];
     if (!pr?.title) continue;
 
+    let prInfo = prInfoCache.get(pr.number);
+    if (!prInfo) {
+      const fetched = await queue(() => fetchPullRequestDetails(repo, headers, pr.number));
+      prInfo = fetched || pr;
+      prInfoCache.set(pr.number, prInfo);
+    }
+
     let files: string[] | undefined;
-    if (filesCache.has(pr.number)) {
-      files = filesCache.get(pr.number);
-    } else {
-      const fr = await fetch(`https://api.github.com/repos/${repo}/pulls/${pr.number}/files?per_page=${maxFiles}`, { headers });
-      if (fr.ok) {
-        const data = (await fr.json()) as GitHubPullFile[];
-        files = data.map(f => f.filename);
-        filesCache.set(pr.number, files);
-      } else {
-        const remaining = fr.headers.get('x-ratelimit-remaining');
-        if (fr.status === 403 && remaining === '0') break;
-      }
+    if (filesCache.has(prInfo.number)) {
+      files = filesCache.get(prInfo.number);
+    } else if (!seenPrNumbers.has(prInfo.number)) {
+      const fetchedFiles = await queue(() => fetchPullRequestFiles(repo, headers, prInfo.number, { maxFiles }));
+      files = fetchedFiles.length > 0 ? fetchedFiles : undefined;
+      if (files) filesCache.set(prInfo.number, files);
+      seenPrNumbers.add(prInfo.number);
     }
 
     prMap[c.sha] = {
-      number: pr.number,
-      title: pr.title,
-      body: pr.body,
-      mergedAt: pr.merged_at ?? null,
+      number: prInfo.number,
+      title: prInfo.title,
+      body: prInfo.body,
+      mergedAt: prInfo.mergedAt ?? null,
       files
     };
   }
 
   return prMap;
+}
+
+function createRequestQueue(concurrency: number) {
+  let active = 0;
+  const queue: Array<() => void> = [];
+
+  const runNext = () => {
+    const next = queue.shift();
+    if (next) next();
+  };
+
+  return async function enqueue<T>(task: () => Promise<T>): Promise<T> {
+    if (active >= concurrency) {
+      await new Promise<void>(resolve => queue.push(resolve));
+    }
+    active += 1;
+    try {
+      return await task();
+    } finally {
+      active -= 1;
+      runNext();
+    }
+  };
 }
 
 export async function fetchGitHubSnapshot(
