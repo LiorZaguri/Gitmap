@@ -15,6 +15,17 @@ export const TYPE_COLORS: Record<CommitType, string> = {
   other: '#a78bfa'
 };
 
+export const STOP_WORDS = new Set([
+  'feat', 'fix', 'chore', 'docs', 'refactor', 'add', 'update', 'remove',
+  'change', 'move', 'rename', 'merge', 'branch', 'commit', 'from', 'with',
+  'this', 'that', 'into', 'and', 'the', 'for', 'not', 'use', 'used',
+  'make', 'made', 'also', 'when', 'now', 'new', 'more', 'some', 'via'
+]);
+
+export function toTitleCase(s: string): string {
+  return s.replace(/\b\w/g, l => l.toUpperCase());
+}
+
 export function cls(msg: string): CommitType {
   if (!msg) return 'other';
   const m = msg.toLowerCase();
@@ -26,11 +37,4 @@ export function cls(msg: string): CommitType {
   return 'other';
 }
 
-export function pname(_msg: string, branch?: string): string {
-  if (branch && branch !== 'main' && branch !== 'master' && branch !== 'HEAD') {
-    const n = branch.replace(/^(feat|fix|feature|hotfix|chore|release|dev)\//i, '').replace(/[-_]/g, ' ');
-    return n.charAt(0).toUpperCase() + n.slice(1);
-  }
-  return 'General';
-}
 

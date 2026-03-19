@@ -1,5 +1,5 @@
 import type { Commit, Phase, PhaseStatus } from '../types';
-import { cls, pname, COLORS } from './classify';
+import { cls, COLORS, STOP_WORDS, toTitleCase } from './classify';
 
 export function buildPhases(commits: any[]): Phase[] {
   // Convert raw GitHub commits to our Commit type with guards
@@ -47,20 +47,59 @@ export function buildPhases(commits: any[]): Phase[] {
 
 function groupByBranch(commits: Commit[]) {
   const groups: any[] = [];
-  let cur: any = null;
+  let curCommitGroup: Commit[] = [];
+  let curBranch = '';
 
   commits.forEach(c => {
-    const name = pname(c.msg, c.branch);
-    if (!cur || cur.name !== name) {
-      if (cur) groups.push(cur);
-      cur = { name, branch: c.branch, items: [c], start: c.date, end: c.date };
+    if (c.branch !== curBranch) {
+      if (curCommitGroup.length) {
+        groups.push({
+          name: nameFromBranch(curBranch, curCommitGroup),
+          branch: curBranch,
+          items: [...curCommitGroup],
+          start: curCommitGroup[0].date,
+          end: curCommitGroup[curCommitGroup.length - 1].date
+        });
+      }
+      curBranch = c.branch;
+      curCommitGroup = [c];
     } else {
-      cur.items.push(c);
-      cur.end = c.date;
+      curCommitGroup.push(c);
     }
   });
-  if (cur) groups.push(cur);
+
+  if (curCommitGroup.length) {
+    groups.push({
+      name: nameFromBranch(curBranch, curCommitGroup),
+      branch: curBranch,
+      items: curCommitGroup,
+      start: curCommitGroup[0].date,
+      end: curCommitGroup[curCommitGroup.length - 1].date
+    });
+  }
   return groups;
+}
+
+function nameFromBranch(branch: string, commits: Commit[]): string {
+  if (!branch || branch === 'main' || branch === 'master' || branch === 'HEAD') {
+    return nameFromCommits(commits);
+  }
+
+  const baseName = branch
+    .replace(/^(feat|fix|feature|hotfix|chore|release|dev)\//i, '')
+    .replace(/[-_]/g, ' ')
+    .trim();
+
+  // (Word frequency logic included as requested, even if only Returning baseName)
+  const words = commits
+    .flatMap(c => c.msg.toLowerCase().split(/[\s\(\)\:\-\/]+/))
+    .filter(w => w.length > 3 && !STOP_WORDS.has(w));
+
+  const freq: Record<string, number> = {};
+  words.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+  // const topWord = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+  return toTitleCase(baseName);
 }
 
 function groupByTimeGaps(commits: Commit[]) {
@@ -85,13 +124,10 @@ function groupByTimeGaps(commits: Commit[]) {
 }
 
 function makeGroup(commits: Commit[]) {
-  const types = commits.map(c => c.type);
-  const dominant = mode(types);
   const start = commits[0].date;
   const end = commits[commits.length - 1].date;
-  const month = new Date(start).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
   return {
-    name: `${dominant} · ${month}`,
+    name: nameFromCommits(commits),
     items: commits,
     start,
     end,
@@ -99,9 +135,32 @@ function makeGroup(commits: Commit[]) {
   };
 }
 
-function mode(arr: string[]): string {
-  const counts: Record<string, number> = {};
-  arr.forEach(x => { counts[x] = (counts[x] || 0) + 1; });
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  return sorted.length > 0 ? sorted[0][0] : 'other';
+function nameFromCommits(commits: Commit[]): string {
+  const words = commits
+    .flatMap(c => {
+      const scopeMatch = c.msg.match(/\w+\((\w+)\):/);
+      const scope = scopeMatch ? [scopeMatch[1]] : [];
+      return [...scope, ...c.msg.toLowerCase().split(/[\s\(\)\:\-\/]+/)];
+    })
+    .filter(w => w.length > 3 && !STOP_WORDS.has(w));
+
+  const freq: Record<string, number> = {};
+  words.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+
+  const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+  const topWord = sorted[0]?.[0];
+  const secondWord = sorted[1]?.[0];
+
+  if (!topWord) {
+    const month = new Date(commits[0].date).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+    return `Work · ${month}`;
+  }
+
+  const name = secondWord && freq[secondWord] > 1
+    ? `${topWord} ${secondWord}`
+    : topWord;
+
+  return toTitleCase(name);
 }
+
+
