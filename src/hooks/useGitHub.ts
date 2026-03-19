@@ -4,6 +4,7 @@ import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
 import { fetchGitHubSnapshot, fetchMergeCommitHints, fetchCommitPathDomains, fetchPullRequestMetadata, type PullRequestMeta } from '../utils/github';
 import { computeConfidence } from '../utils/analysisMeta';
+import { buildWorkItems, type WorkItemDraft } from '../utils/workItems';
 
 const COMMITS_PER_PAGE = 100;
 const MAX_PAGES = 5;
@@ -17,6 +18,7 @@ export function useGitHub() {
   const [data, setData] = useState<{
     repo: string;
     commits: Commit[];
+    workItems: WorkItemDraft[];
     phases: Phase[];
     types: Record<CommitType, number>;
     contribs: string[];
@@ -105,12 +107,15 @@ export function useGitHub() {
         }
       }
 
-      // 5. Build phases from enriched commits
+      // 5. Build work items before phases
+      const workItems = buildWorkItems(enriched, pullRequests, { windowSize: 4 });
+
+      // 6. Build phases from enriched commits
       setLoadingStage('Analyzing phases');
       const { phases, grouping } = buildPhases(enriched, { boundaryHints, pathDomains, pullRequests });
 
 
-      // 6. Calculate stats
+      // 7. Calculate stats
       setLoadingStage('Building insights');
       const types: Record<CommitType, number> = {
         feat: 0,
@@ -133,6 +138,7 @@ export function useGitHub() {
       setData({
         repo,
         commits: enriched,
+        workItems,
         phases,
         types,
         contribs,
