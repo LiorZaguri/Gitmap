@@ -79,7 +79,19 @@ export interface AnalysisMeta {
   partial: boolean;
   confidence: 'high' | 'medium' | 'low';
   roadmapConfidence?: RoadmapConfidence;
+  historyQuality?: HistoryQuality;
   groupingMode: 'branch' | 'time-gap' | 'work-items';
   groupingLabel: 'branch' | 'time-gap' | 'mixed' | 'work-items';
   branchRatio: number;
+}
+
+export interface HistoryQuality {
+  score: number;
+  prCoverage: number;
+  pathCoherence: number;
+  structuredCommits: number;
+  releaseSignals: number;
+  clarity: number;
+  continuity: number;
+  summary: string;
 }

@@ -12,7 +12,7 @@ import { HistoryQuality } from './components/HistoryQuality';
 import { useGitHub } from './hooks/useGitHub';
 
 function App() {
-  const { repo, commits, phases, types, contribs, totalDays, analysis, loading, loadingStage, error, generate } = useGitHub();
+  const { repo, commits, phases, types, contribs, totalDays, analysis, historyQuality, loading, loadingStage, error, generate } = useGitHub();
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState<number | null>(null);
 
   const handlePinClick = (idx: number) => {
@@ -79,7 +79,7 @@ function App() {
 
           <div className="health-grid">
             <HealthScore commits={commits} phases={phases} />
-            <HistoryQuality commits={commits} phases={phases} types={types || {} as Record<CommitType, number>} contribs={contribs || []} />
+            <HistoryQuality commits={commits} phases={phases} types={types || {} as Record<CommitType, number>} contribs={contribs || []} metric={historyQuality} />
           </div>
 
           <InsightsRow types={types || {} as Record<CommitType, number>} contribs={contribs || []} commits={commits} />

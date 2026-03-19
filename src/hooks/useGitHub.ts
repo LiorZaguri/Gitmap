@@ -4,6 +4,7 @@ import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
 import { fetchGitHubSnapshot, fetchMergeCommitHints, fetchCommitPathDomains, fetchPullRequestMetadata, fetchTagOrRelease, type PullRequestMeta, type ReleaseMeta } from '../utils/github';
 import { computeConfidence } from '../utils/analysisMeta';
+import { calculateHistoryQuality } from '../utils/historyQuality';
 import { buildWorkItems } from '../utils/workItems';
 
 const COMMITS_PER_PAGE = 100;
@@ -24,6 +25,7 @@ export function useGitHub() {
     contribs: string[];
     totalDays: number;
     analysis: AnalysisMeta;
+    historyQuality?: import('../types').HistoryQuality;
   } | null>(null);
 
   const generate = useCallback(async (repo: string, token: string) => {
@@ -142,6 +144,7 @@ export function useGitHub() {
       const contribs = [...new Set(enriched.map(c => c.author))];
       
       const { partial, confidence } = computeConfidence(hitCommitLimit, hitBranchLimit);
+      const historyQuality = calculateHistoryQuality(enriched, phases, workItems);
 
       setData({
         repo,
@@ -151,6 +154,7 @@ export function useGitHub() {
         types,
         contribs,
         totalDays,
+        historyQuality,
         analysis: {
           commitsAnalyzed: enriched.length,
           branchesCompared,
@@ -161,6 +165,7 @@ export function useGitHub() {
           partial,
           confidence,
           roadmapConfidence,
+          historyQuality,
           groupingMode: grouping.mode,
           groupingLabel: grouping.label,
           branchRatio: grouping.branchRatio
