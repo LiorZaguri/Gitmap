@@ -54,6 +54,10 @@ function App() {
         <div style={{ marginTop: '20px' }}>
           <StatsRow commitCount={commits.length} phases={phases} totalDays={totalDays || 1} />
           
+          <p style={{ fontSize: '12px', color: 'var(--text3)', textAlign: 'center', marginBottom: '16px', fontFamily: 'JetBrains Mono, monospace' }}>
+            Click any pin to explore that phase ↓
+          </p>
+
           <RoadMap 
             phases={phases} 
             onPinClick={handlePinClick} 

@@ -2,6 +2,12 @@ import type { Commit, Phase, PhaseStatus } from '../types';
 import { cls, COLORS, STOP_WORDS, toTitleCase } from './classify';
 
 export function buildPhases(commits: any[]): Phase[] {
+  console.log('Total commits received:', commits.length);
+  console.log('Branch distribution:', commits.reduce((acc, c) => {
+    acc[c.branch] = (acc[c.branch] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>));
+
   // Convert raw GitHub commits to our Commit type with guards
   const raw = (commits.map(c => {
     if (!c?.commit?.message) return null;

@@ -1,7 +1,8 @@
 import type { Commit, Phase } from '../types';
 
 export function calculateHealth(commits: Commit[], phases: Phase[]) {
-  if (commits.length === 0) return 0;
+  if (!phases || phases.length === 0) return { score: 0, velocity: 0, fixRatio: 0 };
+  if (commits.length === 0) return { score: 0, velocity: 0, fixRatio: 0 };
 
   // 1. Velocity: Commits per week (max 50 for 100% score)
   const firstDate = new Date(commits[0].date).getTime();
