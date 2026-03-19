@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import type { Commit, Phase, CommitType, AnalysisMeta } from '../types';
 import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
-import { fetchGitHubSnapshot, fetchMergeCommitHints, fetchCommitPathDomains } from '../utils/github';
+import { fetchGitHubSnapshot, fetchMergeCommitHints, fetchCommitPathDomains, fetchPullRequestMetadata, type PullRequestMeta } from '../utils/github';
 import { computeConfidence } from '../utils/analysisMeta';
 
 const COMMITS_PER_PAGE = 100;
@@ -76,6 +76,7 @@ export function useGitHub() {
 
       let boundaryHints: number[] = [];
       let pathDomains: Record<string, string> = {};
+      let pullRequests: Record<string, PullRequestMeta> = {};
       if (enriched.length >= 200 && totalDays >= 60) {
         boundaryHints = await fetchMergeCommitHints(
           repo,
@@ -90,10 +91,23 @@ export function useGitHub() {
           enriched.map(c => ({ sha: c.sha, msg: c.msg }))
         );
       }
+      if (enriched.length >= 150 || totalDays >= 90) {
+        setLoadingStage('Fetching PR context');
+        try {
+          pullRequests = await fetchPullRequestMetadata(
+            repo,
+            headers,
+            enriched.map(c => ({ sha: c.sha, msg: c.msg }))
+          );
+        } catch (err) {
+          console.warn('Failed to fetch PR metadata:', err);
+          pullRequests = {};
+        }
+      }
 
       // 5. Build phases from enriched commits
       setLoadingStage('Analyzing phases');
-      const { phases, grouping } = buildPhases(enriched, { boundaryHints, pathDomains });
+      const { phases, grouping } = buildPhases(enriched, { boundaryHints, pathDomains, pullRequests });
 
 
       // 6. Calculate stats

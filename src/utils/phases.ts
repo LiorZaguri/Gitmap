@@ -1,4 +1,5 @@
 import type { Commit, Phase, PhaseStatus } from '../types';
+import type { PullRequestMeta } from './github';
 import { COLORS, STOP_WORDS, toTitleCase } from './classify';
 
 interface PhaseGroup {
@@ -31,7 +32,7 @@ const DOMAIN_MAP = [
 
 export function buildPhases(
   commits: Commit[],
-  options?: { boundaryHints?: number[]; pathDomains?: Record<string, string> }
+  options?: { boundaryHints?: number[]; pathDomains?: Record<string, string>; pullRequests?: Record<string, PullRequestMeta> }
 ): {
   phases: Phase[];
   grouping: {
@@ -56,16 +57,19 @@ export function buildPhases(
   console.log('Branch ratio:', branchRatio, '— using', branchRatio > 0.2 ? 'branch' : 'time-gap', 'grouping');
 
   let groups: PhaseGroup[] = [];
-  if (branchRatio > 0.2) {
-    groups = groupByBranch(raw);
-  } else {
-    groups = groupByTimeGaps(raw);
-  }
-
   const boundaryHints = options?.boundaryHints || [];
   const pathDomains = options?.pathDomains || {};
-  groups = refineGroupsBySemanticSignals(raw, groups, boundaryHints, pathDomains);
-  groups = applyFallbackGrouping(raw, groups, boundaryHints, pathDomains);
+  const pullRequests = options?.pullRequests || {};
+  const context = { pathDomains, pullRequests };
+
+  if (branchRatio > 0.2) {
+    groups = groupByBranch(raw, context);
+  } else if (raw.length > 0) {
+    groups = [makeGroup(raw, context)];
+  }
+
+  groups = refineGroupsBySemanticSignals(raw, groups, boundaryHints, pathDomains, pullRequests);
+  groups = applyFallbackGrouping(raw, groups, boundaryHints, pathDomains, pullRequests);
 
   const now = new Date().getTime();
   // Final conversion to Phase[] with status and color
@@ -97,7 +101,7 @@ export function buildPhases(
   };
 }
 
-function groupByBranch(commits: Commit[]) {
+function groupByBranch(commits: Commit[], context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }) {
   const groups: PhaseGroup[] = [];
   let curCommitGroup: Commit[] = [];
   let curBranch = '';
@@ -106,7 +110,7 @@ function groupByBranch(commits: Commit[]) {
     if (c.branch !== curBranch) {
       if (curCommitGroup.length) {
         groups.push({
-          name: nameFromBranch(curBranch, curCommitGroup),
+          name: nameFromBranch(curBranch, curCommitGroup, context),
           branch: curBranch,
           items: [...curCommitGroup],
           start: curCommitGroup[0].date,
@@ -122,7 +126,7 @@ function groupByBranch(commits: Commit[]) {
 
   if (curCommitGroup.length) {
     groups.push({
-      name: nameFromBranch(curBranch, curCommitGroup),
+      name: nameFromBranch(curBranch, curCommitGroup, context),
       branch: curBranch,
       items: curCommitGroup,
       start: curCommitGroup[0].date,
@@ -132,9 +136,9 @@ function groupByBranch(commits: Commit[]) {
   return groups;
 }
 
-function nameFromBranch(branch: string, commits: Commit[]): string {
+function nameFromBranch(branch: string, commits: Commit[], context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }): string {
   if (!branch || branch === 'main' || branch === 'master' || branch === 'HEAD') {
-    return nameFromCommits(commits);
+    return nameFromCommits(commits, context);
   }
 
   const baseName = branch
@@ -145,7 +149,7 @@ function nameFromBranch(branch: string, commits: Commit[]): string {
   const normalized = baseName.toLowerCase();
   const tooGeneric = !normalized || ['main', 'master', 'dev', 'release', 'feature', 'fix', 'chore'].includes(normalized);
   if (tooGeneric) {
-    return nameFromCommits(commits);
+    return nameFromCommits(commits, context);
   }
 
   // (Word frequency logic included as requested, even if only Returning baseName)
@@ -160,7 +164,11 @@ function nameFromBranch(branch: string, commits: Commit[]): string {
   return toTitleCase(baseName);
 }
 
-function topicFromCommit(commit: Commit, pathDomains: Record<string, string>) {
+function topicFromCommit(
+  commit: Commit,
+  pathDomains: Record<string, string>,
+  pullRequests: Record<string, PullRequestMeta>
+) {
   if (commit.branch && !['main', 'master', 'HEAD'].includes(commit.branch)) {
     const baseName = commit.branch
       .replace(/^(feat|fix|feature|hotfix|chore|release|dev)\//i, '')
@@ -178,6 +186,12 @@ function topicFromCommit(commit: Commit, pathDomains: Record<string, string>) {
 
   const pathDomain = pathDomains[commit.sha];
   if (pathDomain) return toTitleCase(pathDomain);
+
+  const pr = pullRequests[commit.sha];
+  if (pr?.title) {
+    const title = normalizeTitle(pr.title);
+    if (title) return toTitleCase(title);
+  }
 
   const domain = DOMAIN_MAP.find(d => d.re.test(msg));
   if (domain) return domain.name;
@@ -204,6 +218,14 @@ function normalizeBranch(branch: string) {
   return tooGeneric ? null : normalized;
 }
 
+function normalizeTitle(title: string) {
+  return title
+    .replace(/^\[.*?\]\s*/g, '')
+    .replace(/^(feat|fix|chore|docs|refactor|test|build|ci)\s*[:/]\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function addFeature(map: Record<string, number>, key: string | null, weight = 1) {
   if (!key) return;
   map[key] = (map[key] || 0) + weight;
@@ -216,7 +238,30 @@ function tokenizeMessage(msg: string) {
     .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 }
 
-function buildFingerprint(commits: Commit[], pathDomains: Record<string, string>) {
+function dominantDomainFromFiles(files?: string[]) {
+  if (!files || files.length === 0) return null;
+  const counts: Record<string, number> = {};
+  files.forEach(file => {
+    const top = file.split('/')[0] || '(root)';
+    counts[top] = (counts[top] || 0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const top = sorted[0];
+  if (!top) return null;
+  const second = sorted[1]?.[1] || 0;
+  const ratio = top[1] / files.length;
+  if (top[0] === '(root)') return null;
+  if (ratio >= 0.5 || top[1] >= second + 3) {
+    return top[0].replace(/[-_]/g, ' ').trim();
+  }
+  return null;
+}
+
+function buildFingerprint(
+  commits: Commit[],
+  pathDomains: Record<string, string>,
+  pullRequests: Record<string, PullRequestMeta>
+) {
   const counts: Record<string, number> = {};
   commits.forEach(commit => {
     const msg = commit.msg || '';
@@ -239,6 +284,18 @@ function buildFingerprint(commits: Commit[], pathDomains: Record<string, string>
 
     const author = normalizeAuthor(commit.author || '');
     addFeature(counts, author ? `author:${author}` : null, 1);
+
+    const pr = pullRequests[commit.sha];
+    if (pr?.title) {
+      tokenizeMessage(pr.title).forEach(token => addFeature(counts, `pr:${token}`, 2));
+    }
+    if (pr?.body) {
+      tokenizeMessage(pr.body).forEach(token => addFeature(counts, `prbody:${token}`, 1));
+    }
+    if (pr?.files && pr.files.length > 0) {
+      const domain = dominantDomainFromFiles(pr.files);
+      if (domain) addFeature(counts, `prpath:${domain.toLowerCase()}`, 3);
+    }
 
     if (/^merge\b/i.test(msgLower)) addFeature(counts, 'hint:merge', 3);
     if (/release|version|changelog|tag/i.test(msgLower)) addFeature(counts, 'hint:release', 3);
@@ -269,6 +326,7 @@ function detectSimilarityBoundaries(
   slice: Commit[],
   boundaryHints: number[],
   pathDomains: Record<string, string>,
+  pullRequests: Record<string, PullRequestMeta>,
   indexBySha: Map<string, number>
 ) {
   const n = slice.length;
@@ -278,7 +336,7 @@ function detectSimilarityBoundaries(
   if (n < window * 2 + 4) return [];
 
   const hintSet = new Set(boundaryHints);
-  const sims: Array<{ i: number; sim: number; hint: boolean; gap: number; merge: boolean; release: boolean }> = [];
+  const sims: Array<{ i: number; sim: number; hint: boolean; gap: number; merge: boolean; release: boolean; prHint: boolean }> = [];
   const gaps: number[] = [];
 
   for (let i = 1; i < n; i++) {
@@ -290,14 +348,18 @@ function detectSimilarityBoundaries(
   for (let i = window; i <= n - window; i++) {
     const prev = slice.slice(i - window, i);
     const next = slice.slice(i, i + window);
-    const sim = cosineSimilarity(buildFingerprint(prev, pathDomains), buildFingerprint(next, pathDomains));
+    const sim = cosineSimilarity(
+      buildFingerprint(prev, pathDomains, pullRequests),
+      buildFingerprint(next, pathDomains, pullRequests)
+    );
     const globalIdx = indexBySha.get(slice[i].sha);
     const hint = globalIdx !== undefined && hintSet.has(globalIdx);
     const gap = Math.abs(new Date(slice[i].date).getTime() - new Date(slice[i - 1].date).getTime()) / 86400000;
     const msg = slice[i].msg.toLowerCase();
     const merge = msg.startsWith('merge');
     const release = /release|version|changelog|tag/i.test(msg);
-    sims.push({ i, sim, hint, gap, merge, release });
+    const prHint = Boolean(pullRequests[slice[i].sha]);
+    sims.push({ i, sim, hint, gap, merge, release, prHint });
   }
 
   if (sims.length === 0) return [];
@@ -309,7 +371,7 @@ function detectSimilarityBoundaries(
   const boundaries: number[] = [];
   let last = 0;
   for (const s of sims) {
-    const hintish = s.hint || s.merge || s.release || s.gap >= gapThreshold;
+    const hintish = s.hint || s.merge || s.release || s.prHint || s.gap >= gapThreshold;
     const lowDrop = s.sim <= low;
     const midDrop = s.sim <= mid;
     if ((lowDrop || (hintish && midDrop)) && s.i - last >= minSeg && n - s.i >= minSeg) {
@@ -338,32 +400,61 @@ function domainNameFromCommits(commits: Commit[]) {
   return null;
 }
 
-function groupByTimeGaps(commits: Commit[]) {
-  const GAP_DAYS = 3;
-  const groups: PhaseGroup[] = [];
-  let current: Commit[] = [];
+function dominantPrTitle(commits: Commit[], pullRequests: Record<string, PullRequestMeta>) {
+  const titles = commits
+    .map(c => pullRequests[c.sha]?.title)
+    .filter((t): t is string => Boolean(t));
+  if (titles.length === 0) return null;
 
-  commits.forEach((c, i) => {
-    if (i === 0) { current.push(c); return; }
-    const prev = commits[i - 1];
-    const gap = Math.abs(new Date(c.date).getTime() - new Date(prev.date).getTime()) / 86400000;
-    
-    if (gap >= GAP_DAYS) {
-      if (current.length) groups.push(makeGroup(current));
-      current = [c];
-    } else {
-      current.push(c);
-    }
+  const counts: Record<string, { count: number; original: string }> = {};
+  titles.forEach(title => {
+    const cleaned = normalizeTitle(title);
+    if (!cleaned) return;
+    const key = cleaned.toLowerCase();
+    if (!counts[key]) counts[key] = { count: 0, original: cleaned };
+    counts[key].count += 1;
+    if (cleaned.length > counts[key].original.length) counts[key].original = cleaned;
   });
-  if (current.length) groups.push(makeGroup(current));
-  return groups;
+
+  const sorted = Object.values(counts).sort((a, b) => b.count - a.count);
+  const top = sorted[0];
+  if (!top) return null;
+  const ratio = top.count / titles.length;
+  if (top.count >= 2 || ratio >= 0.55 || titles.length <= 2) {
+    return top.original;
+  }
+  return null;
+}
+
+function dominantPathDomainFromCommits(
+  commits: Commit[],
+  pathDomains: Record<string, string>,
+  pullRequests: Record<string, PullRequestMeta>
+) {
+  const counts: Record<string, number> = {};
+  commits.forEach(commit => {
+    const pathDomain = pathDomains[commit.sha];
+    if (pathDomain) counts[pathDomain] = (counts[pathDomain] || 0) + 1;
+    const pr = pullRequests[commit.sha];
+    const prDomain = dominantDomainFromFiles(pr?.files);
+    if (prDomain) counts[prDomain] = (counts[prDomain] || 0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const top = sorted[0];
+  if (!top) return null;
+  const second = sorted[1]?.[1] || 0;
+  if (top[1] >= 3 && (top[1] >= second + 2 || top[1] / commits.length >= 0.4)) {
+    return toTitleCase(top[0]);
+  }
+  return null;
 }
 
 function refineGroupsBySemanticSignals(
   commits: Commit[],
   groups: PhaseGroup[],
   boundaryHints: number[],
-  pathDomains: Record<string, string>
+  pathDomains: Record<string, string>,
+  pullRequests: Record<string, PullRequestMeta>
 ) {
   if (groups.length === 0) return groups;
   const indexBySha = new Map(commits.map((c, idx) => [c.sha, idx]));
@@ -375,7 +466,7 @@ function refineGroupsBySemanticSignals(
       return;
     }
     const slice = group.items;
-    const boundaries = detectSimilarityBoundaries(slice, boundaryHints, pathDomains, indexBySha);
+    const boundaries = detectSimilarityBoundaries(slice, boundaryHints, pathDomains, pullRequests, indexBySha);
     if (boundaries.length === 0) {
       refined.push(group);
       return;
@@ -384,15 +475,15 @@ function refineGroupsBySemanticSignals(
     let start = 0;
     for (const idx of boundaries) {
       const seg = slice.slice(start, idx);
-      if (seg.length) refined.push(makeGroup(seg));
+      if (seg.length) refined.push(makeGroup(seg, { pathDomains, pullRequests }));
       start = idx;
     }
 
     const tail = slice.slice(start);
-    if (tail.length) refined.push(makeGroup(tail));
+    if (tail.length) refined.push(makeGroup(tail, { pathDomains, pullRequests }));
   });
 
-  return mergeAdjacentSameName(mergeSmallGroups(refined, 8));
+  return mergeAdjacentSameName(mergeSmallGroups(refined, 8, { pathDomains, pullRequests }), { pathDomains, pullRequests });
 }
 
 function percentile(values: number[], p: number) {
@@ -406,44 +497,40 @@ function applyFallbackGrouping(
   commits: Commit[],
   groups: PhaseGroup[],
   boundaryHints: number[],
-  pathDomains: Record<string, string>
+  pathDomains: Record<string, string>,
+  pullRequests: Record<string, PullRequestMeta>
 ) {
+  if (commits.length === 0) return groups;
   const first = new Date(commits[0].date).getTime();
   const last = new Date(commits[commits.length - 1].date).getTime();
   const totalDays = Math.max(Math.round(Math.abs(last - first) / 86400000), 1);
-  if (groups.length >= 4) return groups;
+  if (groups.length >= 2) return groups;
   const substantial = commits.length >= 150 || totalDays >= 90;
   if (!substantial) return groups;
 
-  const topicGroups = buildTopicGroups(commits, boundaryHints, pathDomains);
+  const topicGroups = buildTopicGroups(commits, boundaryHints, pathDomains, pullRequests);
   if (topicGroups.length > groups.length) {
     return topicGroups;
   }
 
-  const target = Math.min(10, Math.max(4, Math.round(totalDays / 30)));
-  const hinted = buildHintedGroups(commits, boundaryHints, target);
-  if (hinted.length >= 4) {
+  const hinted = buildHintedGroups(commits, boundaryHints, { pathDomains, pullRequests });
+  if (hinted.length >= 2) {
     return hinted.length >= groups.length ? hinted : groups;
   }
 
-  const bucketSize = Math.max(1, Math.ceil(commits.length / target));
-  const fallback: PhaseGroup[] = [];
+  const gapGroups = splitBySignificantGaps(commits, { pathDomains, pullRequests });
+  if (gapGroups.length > groups.length) return gapGroups;
 
-  for (let i = 0; i < commits.length; i += bucketSize) {
-    const slice = commits.slice(i, i + bucketSize);
-    if (slice.length === 0) continue;
-    fallback.push(makeGroup(slice));
-  }
-
-  return fallback.length >= groups.length ? fallback : groups;
+  return groups;
 }
 
 function buildTopicGroups(
   commits: Commit[],
   boundaryHints: number[],
-  pathDomains: Record<string, string>
+  pathDomains: Record<string, string>,
+  pullRequests: Record<string, PullRequestMeta>
 ) {
-  const topics = commits.map(c => topicFromCommit(c, pathDomains));
+  const topics = commits.map(c => topicFromCommit(c, pathDomains, pullRequests));
   const hintSet = new Set(boundaryHints);
   const groups: PhaseGroup[] = [];
   const window = 8;
@@ -456,7 +543,7 @@ function buildTopicGroups(
   for (let i = 1; i < commits.length; i++) {
     if (hintSet.has(i)) {
       const slice = commits.slice(start, i);
-      if (slice.length) groups.push(makeGroup(slice));
+      if (slice.length) groups.push(makeGroup(slice, { pathDomains, pullRequests }));
       start = i;
       currentTopic = topics[i] || currentTopic;
       continue;
@@ -470,7 +557,7 @@ function buildTopicGroups(
       }
       if (hits >= minHits) {
         const slice = commits.slice(start, i);
-        if (slice.length) groups.push(makeGroup(slice));
+        if (slice.length) groups.push(makeGroup(slice, { pathDomains, pullRequests }));
         start = i;
         currentTopic = t;
       }
@@ -478,13 +565,17 @@ function buildTopicGroups(
   }
 
   const tail = commits.slice(start);
-  if (tail.length) groups.push(makeGroup(tail));
+  if (tail.length) groups.push(makeGroup(tail, { pathDomains, pullRequests }));
 
-  const compacted = mergeSmallGroups(groups, minSize);
-  return mergeAdjacentSameName(compacted);
+  const compacted = mergeSmallGroups(groups, minSize, { pathDomains, pullRequests });
+  return mergeAdjacentSameName(compacted, { pathDomains, pullRequests });
 }
 
-function mergeSmallGroups(groups: PhaseGroup[], minSize: number) {
+function mergeSmallGroups(
+  groups: PhaseGroup[],
+  minSize: number,
+  context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
+) {
   if (groups.length <= 1) return groups;
   const merged: PhaseGroup[] = [];
   for (const group of groups) {
@@ -492,7 +583,7 @@ function mergeSmallGroups(groups: PhaseGroup[], minSize: number) {
       const prev = merged[merged.length - 1];
       prev.items.push(...group.items);
       prev.end = group.end;
-      prev.name = nameFromCommits(prev.items);
+      prev.name = nameFromCommits(prev.items, context);
       prev.branch = prev.branch || group.branch;
     } else {
       merged.push(group);
@@ -504,14 +595,17 @@ function mergeSmallGroups(groups: PhaseGroup[], minSize: number) {
     if (first) {
       merged[0].items = [...first.items, ...merged[0].items];
       merged[0].start = first.start;
-      merged[0].name = nameFromCommits(merged[0].items);
+      merged[0].name = nameFromCommits(merged[0].items, context);
     }
   }
 
   return merged;
 }
 
-function mergeAdjacentSameName(groups: PhaseGroup[]) {
+function mergeAdjacentSameName(
+  groups: PhaseGroup[],
+  context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
+) {
   if (groups.length <= 1) return groups;
   const merged: PhaseGroup[] = [groups[0]];
   for (let i = 1; i < groups.length; i++) {
@@ -520,7 +614,7 @@ function mergeAdjacentSameName(groups: PhaseGroup[]) {
     if (prev.name === next.name) {
       prev.items.push(...next.items);
       prev.end = next.end;
-      prev.name = nameFromCommits(prev.items);
+      prev.name = nameFromCommits(prev.items, context);
       prev.branch = prev.branch || next.branch;
     } else {
       merged.push(next);
@@ -529,18 +623,22 @@ function mergeAdjacentSameName(groups: PhaseGroup[]) {
   return merged;
 }
 
-function buildHintedGroups(commits: Commit[], boundaryHints: number[], target: number) {
+function buildHintedGroups(
+  commits: Commit[],
+  boundaryHints: number[],
+  context?: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
+) {
   if (boundaryHints.length === 0) return [];
   const indices = [...new Set(boundaryHints)]
     .filter(i => i > 0 && i < commits.length - 1)
     .sort((a, b) => a - b);
   if (indices.length === 0) return [];
 
-  const desired = Math.max(0, target - 1);
+  const desired = Math.min(indices.length, Math.max(1, Math.round(indices.length * 0.6)));
   const picked = pickEvenly(indices, desired);
   if (picked.length === 0) return [];
 
-  const minSize = Math.max(15, Math.floor(commits.length / (target * 3)));
+  const minSize = Math.max(12, Math.floor(commits.length / 10));
   const filtered: number[] = [];
   let last = 0;
   for (const idx of picked) {
@@ -555,11 +653,11 @@ function buildHintedGroups(commits: Commit[], boundaryHints: number[], target: n
   let start = 0;
   for (const idx of filtered) {
     const slice = commits.slice(start, idx);
-    if (slice.length) groups.push(makeGroup(slice));
+    if (slice.length) groups.push(makeGroup(slice, context || { pathDomains: {}, pullRequests: {} }));
     start = idx;
   }
   const tail = commits.slice(start);
-  if (tail.length) groups.push(makeGroup(tail));
+  if (tail.length) groups.push(makeGroup(tail, context || { pathDomains: {}, pullRequests: {} }));
   return groups;
 }
 
@@ -575,11 +673,46 @@ function pickEvenly(indices: number[], desired: number) {
   return [...new Set(picked)];
 }
 
-function makeGroup(commits: Commit[]): PhaseGroup {
+function splitBySignificantGaps(
+  commits: Commit[],
+  context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
+) {
+  if (commits.length < 2) return [];
+  const gaps: number[] = [];
+  for (let i = 1; i < commits.length; i++) {
+    const gap = Math.abs(new Date(commits[i].date).getTime() - new Date(commits[i - 1].date).getTime()) / 86400000;
+    gaps.push(gap);
+  }
+  const threshold = Math.max(7, percentile(gaps, 0.9));
+  const boundaries: number[] = [];
+  for (let i = 1; i < commits.length; i++) {
+    const gap = Math.abs(new Date(commits[i].date).getTime() - new Date(commits[i - 1].date).getTime()) / 86400000;
+    if (gap >= threshold) boundaries.push(i);
+  }
+  if (boundaries.length === 0) return [];
+
+  const minSize = Math.max(8, Math.floor(commits.length / 15));
+  const groups: PhaseGroup[] = [];
+  let start = 0;
+  for (const idx of boundaries) {
+    if (idx - start < minSize) continue;
+    const slice = commits.slice(start, idx);
+    if (slice.length) groups.push(makeGroup(slice, context));
+    start = idx;
+  }
+  const tail = commits.slice(start);
+  if (tail.length) groups.push(makeGroup(tail, context));
+  return groups.length > 1 ? groups : [];
+}
+
+function makeGroup(
+  commits: Commit[],
+  context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
+): PhaseGroup {
   const start = commits[0].date;
   const end = commits[commits.length - 1].date;
   return {
-    name: nameFromCommits(commits),
+    name: nameFromCommits(commits, context),
     items: commits,
     start,
     end,
@@ -587,7 +720,10 @@ function makeGroup(commits: Commit[]): PhaseGroup {
   };
 }
 
-function nameFromCommits(commits: Commit[]): string {
+function nameFromCommits(
+  commits: Commit[],
+  context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
+): string {
   // Filter out merge commits — they add noise not signal
   const meaningful = commits.filter(c =>
     !c.msg.toLowerCase().startsWith('merge') &&
@@ -598,8 +734,14 @@ function nameFromCommits(commits: Commit[]): string {
   // If all commits are merge commits/noise, use all commits as source
   const source = meaningful.length > 0 ? meaningful : commits;
 
-  const domainName = domainNameFromCommits(source);
-  if (domainName) return domainName;
+  const prTitle = dominantPrTitle(source, context.pullRequests);
+  if (prTitle) return prTitle;
+
+  const dominantDomain = dominantPathDomainFromCommits(source, context.pathDomains, context.pullRequests);
+  if (dominantDomain) return dominantDomain;
+
+  const msgDomain = domainNameFromCommits(source);
+  if (msgDomain) return msgDomain;
 
   const words = source
     .flatMap(c => {

@@ -66,7 +66,6 @@ function App() {
           <div style={{ margin: '0 0 16px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
             Grouping: {analysis.groupingLabel === 'branch' ? 'Branch patterns' : (analysis.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals')}. Using {analysis.groupingMode === 'branch' ? 'branch' : 'time-gap'} grouping (non-main commits {Math.round(analysis.branchRatio * 100)}%).
           </div>
-          
           <RoadMap 
             phases={phases} 
             onPinClick={handlePinClick} 

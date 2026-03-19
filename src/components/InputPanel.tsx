@@ -7,7 +7,11 @@ interface InputPanelProps {
   error: string | null;
 }
 
-export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading, error }) => {
+export const InputPanel: React.FC<InputPanelProps> = ({
+  onGenerate,
+  loading,
+  error
+}) => {
   const [repo, setRepo] = useState(() => localStorage.getItem('gitmap_repo') ?? '');
   const [token, setToken] = useState('');
   const [repoError, setRepoError] = useState<string | null>(null);

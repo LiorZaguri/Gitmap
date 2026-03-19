@@ -40,6 +40,25 @@ interface GitHubCommitDetail {
   files?: Array<{ filename: string }>;
 }
 
+interface GitHubPull {
+  number: number;
+  title: string;
+  body?: string;
+  merged_at?: string | null;
+}
+
+interface GitHubPullFile {
+  filename: string;
+}
+
+export interface PullRequestMeta {
+  number: number;
+  title: string;
+  body?: string;
+  files?: string[];
+  mergedAt?: string | null;
+}
+
 const toGitHubError = async (r: Response, hasToken: boolean) => {
   const remaining = r.headers.get('x-ratelimit-remaining');
   if (r.status === 403 && remaining === '0') {
@@ -149,6 +168,66 @@ export async function fetchCommitPathDomains(
   }
 
   return domainMap;
+}
+
+export async function fetchPullRequestMetadata(
+  repo: string,
+  headers: Record<string, string>,
+  commits: Array<{ sha: string; msg: string }>,
+  options?: { maxCommits?: number; maxFiles?: number }
+) {
+  const maxCommits = options?.maxCommits ?? 25;
+  const maxFiles = options?.maxFiles ?? 100;
+
+  const candidates = commits
+    .map((c, idx) => ({ ...c, idx }))
+    .filter(c => /^merge\b/i.test(c.msg) || /pull request/i.test(c.msg));
+  const selected = candidates.slice(-maxCommits);
+  const prMap: Record<string, PullRequestMeta> = {};
+  const filesCache = new Map<number, string[]>();
+
+  const pullHeaders = {
+    ...headers,
+    Accept: 'application/vnd.github.groot-preview+json'
+  };
+
+  for (const c of selected) {
+    const r = await fetch(`https://api.github.com/repos/${repo}/commits/${c.sha}/pulls`, { headers: pullHeaders });
+    if (!r.ok) {
+      const remaining = r.headers.get('x-ratelimit-remaining');
+      if (r.status === 403 && remaining === '0') break;
+      continue;
+    }
+    const pulls = (await r.json()) as GitHubPull[];
+    if (!pulls || pulls.length === 0) continue;
+    const pr = pulls[0];
+    if (!pr?.title) continue;
+
+    let files: string[] | undefined;
+    if (filesCache.has(pr.number)) {
+      files = filesCache.get(pr.number);
+    } else {
+      const fr = await fetch(`https://api.github.com/repos/${repo}/pulls/${pr.number}/files?per_page=${maxFiles}`, { headers });
+      if (fr.ok) {
+        const data = (await fr.json()) as GitHubPullFile[];
+        files = data.map(f => f.filename);
+        filesCache.set(pr.number, files);
+      } else {
+        const remaining = fr.headers.get('x-ratelimit-remaining');
+        if (fr.status === 403 && remaining === '0') break;
+      }
+    }
+
+    prMap[c.sha] = {
+      number: pr.number,
+      title: pr.title,
+      body: pr.body,
+      mergedAt: pr.merged_at ?? null,
+      files
+    };
+  }
+
+  return prMap;
 }
 
 export async function fetchGitHubSnapshot(

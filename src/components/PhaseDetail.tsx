@@ -87,7 +87,6 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
           ))}
         </div>
       )}
-
       <div className="sub-road">
         <div className="sub-road-title">What happened in this phase</div>
         <div className="sub-road-wrap">
