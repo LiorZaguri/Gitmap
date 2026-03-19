@@ -1,6 +1,7 @@
 import type { Commit, Phase, PhaseStatus, WorkItem } from '../types';
 import type { PullRequestMeta } from './github';
 import { COLORS, STOP_WORDS, toTitleCase } from './classify';
+import { scoreWorkItemBoundaries, selectBoundaries } from './boundaries';
 
 interface PhaseGroup {
   name: string;
@@ -90,16 +91,44 @@ function segmentWorkItems(
   commitBySha: Map<string, Commit>,
   context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
 ) {
-  const groups: PhaseGroup[] = [];
-  workItems.forEach(item => {
-    if (!item.commitShas || item.commitShas.length === 0) return;
-    const commits = item.commitShas
-      .map(sha => commitBySha.get(sha))
-      .filter((c): c is Commit => Boolean(c));
-    if (commits.length === 0) return;
-    groups.push(makeGroup(commits, context));
+  const scores = scoreWorkItemBoundaries(workItems);
+  const selection = selectBoundaries(workItems, scores, {
+    minGap: 2,
+    minScore: 0.85,
+    minPhaseSize: 2,
+    maxPhaseSize: 14
   });
+  const boundaries = selection.boundaries;
+
+  const groups: PhaseGroup[] = [];
+  let start = 0;
+  const ordered = boundaries.slice().sort((a, b) => a - b);
+  ordered.forEach(boundary => {
+    const slice = workItems.slice(start, boundary);
+    if (slice.length > 0) {
+      const commits = collectCommits(slice, commitBySha);
+      if (commits.length > 0) groups.push(makeGroup(commits, context));
+    }
+    start = boundary;
+  });
+  const tail = workItems.slice(start);
+  if (tail.length > 0) {
+    const commits = collectCommits(tail, commitBySha);
+    if (commits.length > 0) groups.push(makeGroup(commits, context));
+  }
+
   return groups;
+}
+
+function collectCommits(workItems: WorkItem[], commitBySha: Map<string, Commit>) {
+  const commits: Commit[] = [];
+  workItems.forEach(item => {
+    item.commitShas.forEach(sha => {
+      const commit = commitBySha.get(sha);
+      if (commit) commits.push(commit);
+    });
+  });
+  return commits;
 }
 
 function groupByBranch(commits: Commit[], context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }) {

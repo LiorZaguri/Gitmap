@@ -13,6 +13,12 @@ export interface BoundaryScore {
   components: Record<string, BoundaryScoreComponent>;
 }
 
+export interface BoundarySelection {
+  boundaries: number[];
+  scores: BoundaryScore[];
+  reasons: Record<number, string>;
+}
+
 export interface BoundaryWeights {
   pathDomain: number;
   taxonomy: number;
@@ -39,6 +45,44 @@ export function scoreWorkItemBoundaries(workItems: WorkItem[], weights: Boundary
     scores.push(scoreBoundary(workItems[i - 1], workItems[i], i, weights));
   }
   return scores;
+}
+
+export function selectBoundaries(
+  workItems: WorkItem[],
+  scores: BoundaryScore[],
+  options?: { minGap?: number; minScore?: number; maxPhaseSize?: number; minPhaseSize?: number }
+): BoundarySelection {
+  const minGap = Math.max(1, options?.minGap ?? 2);
+  const minScore = options?.minScore ?? 0.8;
+  const minPhaseSize = Math.max(2, options?.minPhaseSize ?? 2);
+  const maxPhaseSize = Math.max(minPhaseSize * 2, options?.maxPhaseSize ?? 14);
+
+  const localMax = scores.filter((s, idx) => {
+    const prev = scores[idx - 1];
+    const next = scores[idx + 1];
+    const isLocal = (!prev || s.score >= prev.score) && (!next || s.score >= next.score);
+    return isLocal && s.score >= minScore;
+  });
+
+  const picked: number[] = [];
+  const reasons: Record<number, string> = {};
+  localMax
+    .sort((a, b) => b.score - a.score)
+    .forEach(candidate => {
+      if (picked.some(idx => Math.abs(idx - candidate.index) < minGap)) return;
+      picked.push(candidate.index);
+      reasons[candidate.index] = 'local-max';
+    });
+
+  const sorted = picked.sort((a, b) => a - b);
+  const adjusted = splitLargePhases(sorted, scores, workItems.length, maxPhaseSize, minPhaseSize, minScore, reasons);
+  const merged = mergeTinyPhases(adjusted, scores, workItems.length, minPhaseSize, minScore, reasons);
+
+  return {
+    boundaries: merged,
+    scores,
+    reasons
+  };
 }
 
 function scoreBoundary(prev: WorkItem, next: WorkItem, index: number, weights: BoundaryWeights): BoundaryScore {
@@ -141,4 +185,98 @@ function clamp01(value: number) {
   if (value < 0) return 0;
   if (value > 1) return 1;
   return value;
+}
+
+function splitLargePhases(
+  boundaries: number[],
+  scores: BoundaryScore[],
+  totalItems: number,
+  maxPhaseSize: number,
+  minPhaseSize: number,
+  minScore: number,
+  reasons: Record<number, string>
+) {
+  const result = [...boundaries];
+  const withEdges = [0, ...result, totalItems];
+  for (let i = 1; i < withEdges.length; i += 1) {
+    const start = withEdges[i - 1];
+    const end = withEdges[i];
+    const span = end - start;
+    if (span <= maxPhaseSize) continue;
+    const candidate = bestInternalBoundary(scores, start + minPhaseSize, end - minPhaseSize, minScore);
+    if (candidate !== null && !result.includes(candidate)) {
+      result.push(candidate);
+      reasons[candidate] = 'split-large';
+    }
+  }
+  return result.sort((a, b) => a - b);
+}
+
+function mergeTinyPhases(
+  boundaries: number[],
+  scores: BoundaryScore[],
+  totalItems: number,
+  minPhaseSize: number,
+  minScore: number,
+  reasons: Record<number, string>
+) {
+  const result = [...boundaries];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const withEdges = [0, ...result, totalItems];
+    for (let i = 1; i < withEdges.length; i += 1) {
+      const start = withEdges[i - 1];
+      const end = withEdges[i];
+      const span = end - start;
+      if (span >= minPhaseSize) continue;
+      const boundaryToRemove = boundaryToRemoveForTiny(result, start, end, scores, minScore);
+      if (boundaryToRemove !== null) {
+        const idx = result.indexOf(boundaryToRemove);
+        if (idx >= 0) {
+          result.splice(idx, 1);
+          reasons[boundaryToRemove] = 'merge-tiny';
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+  return result;
+}
+
+function boundaryToRemoveForTiny(
+  boundaries: number[],
+  start: number,
+  end: number,
+  scores: BoundaryScore[],
+  minScore: number
+) {
+  const candidates = [start, end].filter(idx => boundaries.includes(idx));
+  if (candidates.length === 0) return null;
+  let weakest = candidates[0];
+  let weakestScore = scoreForBoundary(weakest, scores);
+  candidates.slice(1).forEach(idx => {
+    const score = scoreForBoundary(idx, scores);
+    if (score < weakestScore) {
+      weakest = idx;
+      weakestScore = score;
+    }
+  });
+  if (weakestScore >= minScore) return null;
+  return weakest;
+}
+
+function bestInternalBoundary(scores: BoundaryScore[], start: number, end: number, minScore: number) {
+  let best: BoundaryScore | null = null;
+  scores.forEach(score => {
+    if (score.index <= start || score.index >= end) return;
+    if (!best || score.score > best.score) best = score;
+  });
+  if (!best || best.score < minScore) return null;
+  return best.index;
+}
+
+function scoreForBoundary(index: number, scores: BoundaryScore[]) {
+  return scores.find(score => score.index === index)?.score ?? 0;
 }
