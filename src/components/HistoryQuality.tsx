@@ -9,7 +9,7 @@ interface HistoryQualityProps {
   metric?: HistoryQualityMetric;
 }
 
-export const HistoryQuality: React.FC<HistoryQualityProps> = ({ commits, phases, types, contribs, metric }) => {
+export const HistoryQuality: React.FC<HistoryQualityProps> = ({ types, contribs, metric }) => {
   const quality = metric;
   if (!quality) return null;
   const total = Object.values(types).reduce((a, b) => a + b, 0) || 1;

@@ -265,13 +265,17 @@ function boundaryToRemoveForTiny(
 }
 
 function bestInternalBoundary(scores: BoundaryScore[], start: number, end: number, minScore: number) {
-  let best: BoundaryScore | null = null;
-  scores.forEach(score => {
-    if (score.index <= start || score.index >= end) return;
-    if (!best || score.score > best.score) best = score;
-  });
-  if (!best || best.score < minScore) return null;
-  return best.index;
+  let bestIndex: number | null = null;
+  let bestScore = -Infinity;
+  for (const score of scores) {
+    if (score.index <= start || score.index >= end) continue;
+    if (score.score > bestScore) {
+      bestScore = score.score;
+      bestIndex = score.index;
+    }
+  }
+  if (bestIndex === null || bestScore < minScore) return null;
+  return bestIndex;
 }
 
 function scoreForBoundary(index: number, scores: BoundaryScore[]) {

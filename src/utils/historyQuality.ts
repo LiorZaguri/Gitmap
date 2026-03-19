@@ -13,8 +13,6 @@ const GENERIC_PATTERNS = [
   /^tmp\b/i
 ];
 
-const GENERIC_NAMES = new Set(['work', 'update', 'changes', 'misc', 'cleanup', 'chore', 'refactor']);
-
 const WEIGHTS = {
   prCoverage: 0.2,
   pathCoherence: 0.2,
@@ -60,22 +58,6 @@ function buildTokenCounts(commits: Commit[]) {
   return counts;
 }
 
-function cosineSimilarity(a: Record<string, number>, b: Record<string, number>) {
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-  for (const key in a) {
-    const av = a[key];
-    normA += av * av;
-    if (b[key]) dot += av * b[key];
-  }
-  for (const key in b) {
-    const bv = b[key];
-    normB += bv * bv;
-  }
-  if (normA === 0 || normB === 0) return 0;
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
 
 function scoreCommitClarity(commits: Commit[]) {
   if (commits.length === 0) return 0;
@@ -95,21 +77,6 @@ function scoreWorkstreamCoherence(phases: Phase[]) {
   return (ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100;
 }
 
-function scoreNamingConfidence(phases: Phase[]) {
-  if (phases.length === 0) return 0;
-  const unique = new Set(phases.map(p => p.name.toLowerCase()));
-  const uniqueRatio = unique.size / phases.length;
-  const quality: number[] = phases.map(p => {
-    const name = p.name?.trim().toLowerCase() || '';
-    if (!name) return 0;
-    if (name.startsWith('work ·')) return 0;
-    if (GENERIC_NAMES.has(name)) return 0;
-    if (name.length < 5) return 0;
-    return 1;
-  });
-  const avg = quality.reduce((a, b) => a + b, 0) / quality.length;
-  return avg * uniqueRatio * 100;
-}
 
 function scoreStructuredCommits(commits: Commit[]) {
   if (commits.length === 0) return 0;
