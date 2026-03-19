@@ -42,6 +42,8 @@ export interface Phase {
   idx: number;
   fingerprint?: PhaseFingerprint;
   nameSource?: PhaseNameSource;
+  nameReason?: string;
+  boundaryReason?: string;
   roadmapConfidence?: RoadmapConfidence;
 }
 

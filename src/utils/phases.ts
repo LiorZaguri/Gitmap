@@ -6,6 +6,7 @@ import { buildPhaseFingerprint } from './phaseFingerprint';
 import { buildPhaseName } from './phaseNaming';
 import { calculateRoadmapConfidence } from './roadmapConfidence';
 import type { RoadmapConfidence } from '../types';
+import { buildBoundaryReason, buildPhaseNameReason } from './phaseExplanation';
 
 interface PhaseGroup {
   name: string;
@@ -88,6 +89,8 @@ export function buildPhases(
   // Final conversion to Phase[] with status and color
   const trimmedGroups = groups.slice(-14);
   const offset = Math.max(groups.length - trimmedGroups.length, 0);
+  const boundaryScoreByIndex = new Map(boundarySelection.scores.map(score => [score.index, score]));
+
   const phases = trimmedGroups.map((g, i) => {
     const isLast = i === Math.min(groups.length, 14) - 1;
     const daysSince = (now - new Date(g.end).getTime()) / 86400000;
@@ -99,11 +102,17 @@ export function buildPhases(
     const fingerprint = g.fingerprint ?? buildPhaseFingerprint(g.workItems ?? [], g.items);
     const naming = buildPhaseName(fingerprint, g.items);
     const roadmapConfidence = confidenceResult.perPhase[i + offset];
+    const boundaryIndex = g.workItemStart ?? 0;
+    const boundaryScore = boundaryIndex > 0 ? boundaryScoreByIndex.get(boundaryIndex) : undefined;
+    const nameReason = buildPhaseNameReason(fingerprint, naming.source);
+    const boundaryReason = buildBoundaryReason(boundaryScore, boundaryIndex === 0);
 
     return {
       ...g,
       name: naming.name,
       nameSource: naming.source,
+      nameReason,
+      boundaryReason,
       fingerprint,
       roadmapConfidence,
       status,
