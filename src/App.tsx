@@ -11,7 +11,7 @@ import { HealthScore } from './components/HealthScore';
 import { useGitHub } from './hooks/useGitHub';
 
 function App() {
-  const { commits, phases, types, contribs, totalDays, analysis, loading, loadingStage, error, generate } = useGitHub();
+  const { repo, commits, phases, types, contribs, totalDays, analysis, loading, loadingStage, error, generate } = useGitHub();
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState<number | null>(null);
 
   const handlePinClick = (idx: number) => {
@@ -77,7 +77,12 @@ function App() {
             activePhaseIdx={selectedPhaseIdx}
           />
           
-          <PhaseDetail phase={selectedPhase} onClose={() => setSelectedPhaseIdx(null)} />
+          <PhaseDetail
+            phase={selectedPhase}
+            repo={repo}
+            analysis={analysis}
+            onClose={() => setSelectedPhaseIdx(null)}
+          />
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <HealthScore commits={commits} phases={phases} />

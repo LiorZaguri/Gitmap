@@ -36,6 +36,7 @@ export function useGitHub() {
   const [error, setError] = useState<string | null>(null);
   const [loadingStage, setLoadingStage] = useState<string | null>(null);
   const [data, setData] = useState<{
+    repo: string;
     commits: Commit[];
     phases: Phase[];
     types: Record<CommitType, number>;
@@ -195,6 +196,7 @@ export function useGitHub() {
       const confidence = !partial ? 'high' : (hitCommitLimit && hitBranchLimit ? 'low' : 'medium');
 
       setData({
+        repo,
         commits: enriched,
         phases,
         types,
