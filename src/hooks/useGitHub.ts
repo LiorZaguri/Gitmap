@@ -108,7 +108,7 @@ export function useGitHub() {
       }
 
       // 5. Build work items before phases
-      const workItems = buildWorkItems(enriched, pullRequests, { windowSize: 4 });
+      const workItems = buildWorkItems(enriched, pullRequests, { windowSize: 4, pathDomains });
 
       // 6. Build phases from enriched commits
       setLoadingStage('Analyzing phases');
