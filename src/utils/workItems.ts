@@ -1,6 +1,7 @@
 import type { Commit, WorkItem, WorkItemKind } from '../types';
 import type { PullRequestMeta } from './github';
 import { STOP_WORDS } from './classify';
+import { extractPathDomainSummary } from './pathDomains';
 
 interface WorkItemDraft {
   kind: WorkItemKind;
@@ -94,7 +95,7 @@ function createDraft(
   };
   appendCommit(draft, commit, commitDomains);
   if (pr?.files && pr.files.length > 0) {
-    extractDomainsFromFiles(pr.files).forEach(domain => draft.pathDomains.add(domain));
+    addDomainsFromFiles(draft, pr.files);
   }
   return draft;
 }
@@ -124,13 +125,9 @@ function extractTokens(msg: string) {
     .filter(token => token.length > 2 && !STOP_WORDS.has(token));
 }
 
-function extractDomainsFromFiles(files: string[]) {
-  const domains = new Set<string>();
-  files.forEach(file => {
-    const top = file.split('/')[0];
-    if (top && top !== '(root)') domains.add(top);
-  });
-  return domains;
+function addDomainsFromFiles(draft: WorkItemDraft, files: string[]) {
+  const summary = extractPathDomainSummary(files);
+  summary.domains.forEach(domain => draft.pathDomains.add(domain.domain));
 }
 
 function isSimilarCommit(
