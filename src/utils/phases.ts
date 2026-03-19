@@ -28,7 +28,10 @@ const DOMAIN_MAP = [
   { re: /performance|optim|cache|speed/i, name: 'Performance' },
 ];
 
-export function buildPhases(commits: Commit[]): {
+export function buildPhases(
+  commits: Commit[],
+  options?: { boundaryHints?: number[] }
+): {
   phases: Phase[];
   grouping: {
     mode: 'branch' | 'time-gap';
@@ -58,7 +61,7 @@ export function buildPhases(commits: Commit[]): {
     groups = groupByTimeGaps(raw);
   }
 
-  groups = applyFallbackGrouping(raw, groups);
+  groups = applyFallbackGrouping(raw, groups, options?.boundaryHints || []);
 
   const now = new Date().getTime();
   // Final conversion to Phase[] with status and color
@@ -191,7 +194,7 @@ function groupByTimeGaps(commits: Commit[]) {
   return groups;
 }
 
-function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[]) {
+function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[], boundaryHints: number[]) {
   if (groups.length >= 4) return groups;
   if (commits.length < 200) return groups;
 
@@ -201,6 +204,11 @@ function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[]) {
   if (totalDays < 60) return groups;
 
   const target = Math.min(10, Math.max(4, Math.round(totalDays / 30)));
+  const hinted = buildHintedGroups(commits, boundaryHints, target);
+  if (hinted.length >= 4) {
+    return hinted.length >= groups.length ? hinted : groups;
+  }
+
   const bucketSize = Math.max(1, Math.ceil(commits.length / target));
   const fallback: PhaseGroup[] = [];
 
@@ -211,6 +219,52 @@ function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[]) {
   }
 
   return fallback.length >= groups.length ? fallback : groups;
+}
+
+function buildHintedGroups(commits: Commit[], boundaryHints: number[], target: number) {
+  if (boundaryHints.length === 0) return [];
+  const indices = [...new Set(boundaryHints)]
+    .filter(i => i > 0 && i < commits.length - 1)
+    .sort((a, b) => a - b);
+  if (indices.length === 0) return [];
+
+  const desired = Math.max(0, target - 1);
+  const picked = pickEvenly(indices, desired);
+  if (picked.length === 0) return [];
+
+  const minSize = Math.max(15, Math.floor(commits.length / (target * 3)));
+  const filtered: number[] = [];
+  let last = 0;
+  for (const idx of picked) {
+    if (idx - last >= minSize) {
+      filtered.push(idx);
+      last = idx;
+    }
+  }
+  if (filtered.length === 0) return [];
+
+  const groups: PhaseGroup[] = [];
+  let start = 0;
+  for (const idx of filtered) {
+    const slice = commits.slice(start, idx);
+    if (slice.length) groups.push(makeGroup(slice));
+    start = idx;
+  }
+  const tail = commits.slice(start);
+  if (tail.length) groups.push(makeGroup(tail));
+  return groups;
+}
+
+function pickEvenly(indices: number[], desired: number) {
+  if (desired <= 0) return [];
+  if (indices.length <= desired) return indices;
+  const step = indices.length / (desired + 1);
+  const picked: number[] = [];
+  for (let i = 1; i <= desired; i++) {
+    const idx = Math.min(indices.length - 1, Math.floor(i * step));
+    picked.push(indices[idx]);
+  }
+  return [...new Set(picked)];
 }
 
 function makeGroup(commits: Commit[]): PhaseGroup {

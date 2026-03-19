@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import type { Commit, Phase, CommitType, AnalysisMeta } from '../types';
 import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
-import { fetchGitHubSnapshot } from '../utils/github';
+import { fetchGitHubSnapshot, fetchMergeCommitHints } from '../utils/github';
 import { computeConfidence } from '../utils/analysisMeta';
 
 const COMMITS_PER_PAGE = 100;
@@ -70,9 +70,22 @@ export function useGitHub() {
       // CRITICAL: Reverse so oldest commits come first
       enriched.reverse();
 
+      const firstDate = new Date(enriched[0].date).getTime();
+      const lastDate = new Date(enriched[enriched.length - 1].date).getTime();
+      const totalDays = Math.max(Math.round(Math.abs(lastDate - firstDate) / 86400000), 1);
+
+      let boundaryHints: number[] = [];
+      if (enriched.length >= 200 && totalDays >= 60) {
+        boundaryHints = await fetchMergeCommitHints(
+          repo,
+          headers,
+          enriched.map(c => ({ sha: c.sha, msg: c.msg }))
+        );
+      }
+
       // 5. Build phases from enriched commits
       setLoadingStage('Analyzing phases');
-      const { phases, grouping } = buildPhases(enriched);
+      const { phases, grouping } = buildPhases(enriched, { boundaryHints });
 
 
       // 6. Calculate stats
@@ -93,10 +106,6 @@ export function useGitHub() {
 
       const contribs = [...new Set(enriched.map(c => c.author))];
       
-      const firstDate = new Date(enriched[0].date).getTime();
-      const lastDate = new Date(enriched[enriched.length - 1].date).getTime();
-      const totalDays = Math.max(Math.round(Math.abs(lastDate - firstDate) / 86400000), 1);
-
       const { partial, confidence } = computeConfidence(hitCommitLimit, hitBranchLimit);
 
       setData({

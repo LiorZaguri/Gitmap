@@ -36,6 +36,10 @@ export interface GitHubSnapshot {
   branchesCompared: number;
 }
 
+interface GitHubCommitDetail {
+  files?: Array<{ filename: string }>;
+}
+
 const toGitHubError = async (r: Response, hasToken: boolean) => {
   const remaining = r.headers.get('x-ratelimit-remaining');
   if (r.status === 403 && remaining === '0') {
@@ -55,6 +59,47 @@ const toGitHubError = async (r: Response, hasToken: boolean) => {
   const e = await r.json().catch(() => ({} as { message?: string }));
   return e.message || `GitHub error ${r.status}`;
 };
+
+export async function fetchMergeCommitHints(
+  repo: string,
+  headers: Record<string, string>,
+  commits: Array<{ sha: string; msg: string }>,
+  options?: { maxCandidates?: number; minFiles?: number; dominance?: number }
+) {
+  const maxCandidates = options?.maxCandidates ?? 20;
+  const minFiles = options?.minFiles ?? 5;
+  const dominance = options?.dominance ?? 0.6;
+
+  const candidates = commits
+    .map((c, idx) => ({ ...c, idx }))
+    .filter(c => /^merge\b/i.test(c.msg));
+  const selected = candidates.slice(-maxCandidates);
+  const hints: number[] = [];
+
+  for (const c of selected) {
+    const r = await fetch(`https://api.github.com/repos/${repo}/commits/${c.sha}`, { headers });
+    if (!r.ok) {
+      const remaining = r.headers.get('x-ratelimit-remaining');
+      if (r.status === 403 && remaining === '0') break;
+      continue;
+    }
+    const data = (await r.json()) as GitHubCommitDetail;
+    const files = data.files || [];
+    if (files.length < minFiles) continue;
+
+    const counts: Record<string, number> = {};
+    files.forEach(f => {
+      const top = f.filename.split('/')[0] || '(root)';
+      counts[top] = (counts[top] || 0) + 1;
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (!top) continue;
+    const count = top[1];
+    if (count / files.length >= dominance) hints.push(c.idx);
+  }
+
+  return hints;
+}
 
 export async function fetchGitHubSnapshot(
   repo: string,
