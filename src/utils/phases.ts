@@ -185,6 +185,142 @@ function topicFromCommit(commit: Commit, pathDomains: Record<string, string>) {
   return null;
 }
 
+function normalizeAuthor(author: string) {
+  return author
+    .toLowerCase()
+    .replace(/<[^>]+>/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function normalizeBranch(branch: string) {
+  if (!branch || ['main', 'master', 'HEAD'].includes(branch)) return null;
+  const baseName = branch
+    .replace(/^(feat|fix|feature|hotfix|chore|release|dev)\//i, '')
+    .replace(/[-_]/g, ' ')
+    .trim();
+  const normalized = baseName.toLowerCase();
+  const tooGeneric = !normalized || ['main', 'master', 'dev', 'release', 'feature', 'fix', 'chore'].includes(normalized);
+  return tooGeneric ? null : normalized;
+}
+
+function addFeature(map: Record<string, number>, key: string | null, weight = 1) {
+  if (!key) return;
+  map[key] = (map[key] || 0) + weight;
+}
+
+function tokenizeMessage(msg: string) {
+  return msg
+    .toLowerCase()
+    .split(/[\s():/.-]+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w));
+}
+
+function buildFingerprint(commits: Commit[], pathDomains: Record<string, string>) {
+  const counts: Record<string, number> = {};
+  commits.forEach(commit => {
+    const msg = commit.msg || '';
+    const msgLower = msg.toLowerCase();
+
+    const scopeMatch = msg.match(/\w+\(([^)]+)\):/);
+    const scope = scopeMatch?.[1]?.trim().toLowerCase();
+    addFeature(counts, scope ? `scope:${scope}` : null, 2);
+
+    tokenizeMessage(msg).forEach(token => addFeature(counts, `msg:${token}`, 1));
+
+    const domain = DOMAIN_MAP.find(d => d.re.test(msgLower));
+    addFeature(counts, domain ? `domain:${domain.name.toLowerCase()}` : null, 3);
+
+    const pathDomain = pathDomains[commit.sha];
+    addFeature(counts, pathDomain ? `path:${pathDomain.toLowerCase()}` : null, 4);
+
+    const branch = normalizeBranch(commit.branch);
+    addFeature(counts, branch ? `branch:${branch}` : null, 2);
+
+    const author = normalizeAuthor(commit.author || '');
+    addFeature(counts, author ? `author:${author}` : null, 1);
+
+    if (/^merge\b/i.test(msgLower)) addFeature(counts, 'hint:merge', 3);
+    if (/release|version|changelog|tag/i.test(msgLower)) addFeature(counts, 'hint:release', 3);
+
+    if (commit.type) addFeature(counts, `type:${commit.type}`, 1);
+  });
+  return counts;
+}
+
+function cosineSimilarity(a: Record<string, number>, b: Record<string, number>) {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (const key in a) {
+    const av = a[key];
+    normA += av * av;
+    if (b[key]) dot += av * b[key];
+  }
+  for (const key in b) {
+    const bv = b[key];
+    normB += bv * bv;
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+function detectSimilarityBoundaries(
+  slice: Commit[],
+  boundaryHints: number[],
+  pathDomains: Record<string, string>,
+  indexBySha: Map<string, number>
+) {
+  const n = slice.length;
+  const minWindow = 6;
+  const maxWindow = 14;
+  const window = Math.min(maxWindow, Math.max(minWindow, Math.round(n / 12)));
+  if (n < window * 2 + 4) return [];
+
+  const hintSet = new Set(boundaryHints);
+  const sims: Array<{ i: number; sim: number; hint: boolean; gap: number; merge: boolean; release: boolean }> = [];
+  const gaps: number[] = [];
+
+  for (let i = 1; i < n; i++) {
+    const gap = Math.abs(new Date(slice[i].date).getTime() - new Date(slice[i - 1].date).getTime()) / 86400000;
+    gaps.push(gap);
+  }
+  const gapThreshold = Math.max(5, percentile(gaps, 0.9));
+
+  for (let i = window; i <= n - window; i++) {
+    const prev = slice.slice(i - window, i);
+    const next = slice.slice(i, i + window);
+    const sim = cosineSimilarity(buildFingerprint(prev, pathDomains), buildFingerprint(next, pathDomains));
+    const globalIdx = indexBySha.get(slice[i].sha);
+    const hint = globalIdx !== undefined && hintSet.has(globalIdx);
+    const gap = Math.abs(new Date(slice[i].date).getTime() - new Date(slice[i - 1].date).getTime()) / 86400000;
+    const msg = slice[i].msg.toLowerCase();
+    const merge = msg.startsWith('merge');
+    const release = /release|version|changelog|tag/i.test(msg);
+    sims.push({ i, sim, hint, gap, merge, release });
+  }
+
+  if (sims.length === 0) return [];
+  const simValues = sims.map(s => s.sim);
+  const low = percentile(simValues, 0.2);
+  const mid = percentile(simValues, 0.4);
+  const minSeg = Math.max(8, Math.floor(window * 1.5));
+
+  const boundaries: number[] = [];
+  let last = 0;
+  for (const s of sims) {
+    const hintish = s.hint || s.merge || s.release || s.gap >= gapThreshold;
+    const lowDrop = s.sim <= low;
+    const midDrop = s.sim <= mid;
+    if ((lowDrop || (hintish && midDrop)) && s.i - last >= minSeg && n - s.i >= minSeg) {
+      boundaries.push(s.i);
+      last = s.i;
+    }
+  }
+
+  return boundaries;
+}
+
 function domainNameFromCommits(commits: Commit[]) {
   const text = commits.map(c => c.msg).join(' ').toLowerCase();
   const matches = DOMAIN_MAP
@@ -230,58 +366,26 @@ function refineGroupsBySemanticSignals(
   pathDomains: Record<string, string>
 ) {
   if (groups.length === 0) return groups;
-  const hintSet = new Set(boundaryHints);
   const indexBySha = new Map(commits.map((c, idx) => [c.sha, idx]));
 
   const refined: PhaseGroup[] = [];
   groups.forEach(group => {
-    if (group.items.length < 30) {
+    if (group.items.length < 24) {
+      refined.push(group);
+      return;
+    }
+    const slice = group.items;
+    const boundaries = detectSimilarityBoundaries(slice, boundaryHints, pathDomains, indexBySha);
+    if (boundaries.length === 0) {
       refined.push(group);
       return;
     }
 
-    const slice = group.items;
-    const topics = slice.map(c => topicFromCommit(c, pathDomains));
-    const gaps: number[] = [];
-    for (let i = 1; i < slice.length; i++) {
-      const gap = Math.abs(new Date(slice[i].date).getTime() - new Date(slice[i - 1].date).getTime()) / 86400000;
-      gaps.push(gap);
-    }
-    const gapThreshold = Math.max(5, percentile(gaps, 0.9));
-    const minSize = 10;
-    const window = 8;
-    const minHits = 3;
-
     let start = 0;
-    let currentTopic = topics[0] || null;
-
-    for (let i = 1; i < slice.length; i++) {
-      const gap = Math.abs(new Date(slice[i].date).getTime() - new Date(slice[i - 1].date).getTime()) / 86400000;
-      const release = /release|version|changelog|tag/i.test(slice[i].msg);
-      const merge = /^merge\b/i.test(slice[i].msg);
-      const idx = indexBySha.get(slice[i].sha);
-
-      if ((release || merge || (idx !== undefined && hintSet.has(idx)) || gap >= gapThreshold) && (i - start) >= minSize) {
-        const seg = slice.slice(start, i);
-        if (seg.length) refined.push(makeGroup(seg));
-        start = i;
-        currentTopic = topics[i] || currentTopic;
-        continue;
-      }
-
-      const t = topics[i];
-      if (t && t !== currentTopic && (i - start) >= minSize) {
-        let hits = 0;
-        for (let j = i; j < Math.min(slice.length, i + window); j++) {
-          if (topics[j] === t) hits += 1;
-        }
-        if (hits >= minHits) {
-          const seg = slice.slice(start, i);
-          if (seg.length) refined.push(makeGroup(seg));
-          start = i;
-          currentTopic = t;
-        }
-      }
+    for (const idx of boundaries) {
+      const seg = slice.slice(start, idx);
+      if (seg.length) refined.push(makeGroup(seg));
+      start = idx;
     }
 
     const tail = slice.slice(start);
