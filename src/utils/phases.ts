@@ -31,7 +31,6 @@ const DOMAIN_MAP = [
   { re: /release|version|changelog|tag/i, name: 'Release' },
   { re: /kpi|metric|chart|graph|visual|dashboard/i, name: 'Data Visualization' },
   { re: /runtime|render|host|widget|tool/i, name: 'Runtime Engine' },
-  { re: /generation|llm|ai|prompt|model/i, name: 'AI Generation' },
   { re: /init|setup|scaffold|bootstrap|initial/i, name: 'Project Setup' },
   { re: /permission|role|access|security/i, name: 'Permissions' },
   { re: /mobile|native|pwa|ios|android/i, name: 'Mobile' },
