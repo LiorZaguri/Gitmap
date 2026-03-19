@@ -134,13 +134,24 @@ function makeGroup(commits: Commit[]) {
 }
 
 function nameFromCommits(commits: Commit[]): string {
-  const words = commits
+  // Filter out merge commits — they add noise not signal
+  const meaningful = commits.filter(c =>
+    !c.msg.toLowerCase().startsWith('merge') &&
+    !c.msg.toLowerCase().startsWith('revert') &&
+    !c.msg.toLowerCase().startsWith('bump')
+  );
+
+  // If all commits are merge commits/noise, use all commits as source
+  const source = meaningful.length > 0 ? meaningful : commits;
+
+  const words = source
     .flatMap(c => {
       const scopeMatch = c.msg.match(/\w+\((\w+)\):/);
       const scope = scopeMatch ? [scopeMatch[1]] : [];
       return [...scope, ...c.msg.toLowerCase().split(/[\s\(\)\:\-\/]+/)];
     })
     .filter(w => w.length > 3 && !STOP_WORDS.has(w));
+
 
   const freq: Record<string, number> = {};
   words.forEach(w => { freq[w] = (freq[w] || 0) + 1; });

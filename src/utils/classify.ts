@@ -16,11 +16,23 @@ export const TYPE_COLORS: Record<CommitType, string> = {
 };
 
 export const STOP_WORDS = new Set([
-  'feat', 'fix', 'chore', 'docs', 'refactor', 'add', 'update', 'remove',
-  'change', 'move', 'rename', 'merge', 'branch', 'commit', 'from', 'with',
-  'this', 'that', 'into', 'and', 'the', 'for', 'not', 'use', 'used',
-  'make', 'made', 'also', 'when', 'now', 'new', 'more', 'some', 'via'
+  // commit type prefixes
+  'feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'style', 'perf', 'build', 'revert',
+  // generic action verbs that appear in every repo
+  'add', 'adds', 'added', 'update', 'updates', 'updated', 'remove', 'removes', 'removed',
+  'change', 'changes', 'changed', 'move', 'moves', 'moved', 'rename', 'renames', 'renamed',
+  'make', 'makes', 'made', 'use', 'uses', 'used', 'get', 'gets', 'set', 'sets',
+  'fix', 'fixes', 'fixed', 'clean', 'cleans', 'cleaned', 'improve', 'improves',
+  // conjunctions and prepositions
+  'with', 'from', 'into', 'onto', 'upon', 'that', 'this', 'then', 'when', 'also',
+  'more', 'some', 'very', 'just', 'only', 'even', 'back', 'via', 'per',
+  // git-specific words
+  'merge', 'merged', 'branch', 'commit', 'push', 'pull', 'request', 'origin',
+  'master', 'main', 'head', 'rebase', 'cherry', 'pick',
+  // short noise
+  'and', 'the', 'for', 'not', 'new', 'now', 'but', 'all', 'any', 'its'
 ]);
+
 
 export function toTitleCase(s: string): string {
   return s.replace(/\b\w/g, l => l.toUpperCase());
