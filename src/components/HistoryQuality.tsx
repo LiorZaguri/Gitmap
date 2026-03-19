@@ -1,9 +1,7 @@
 import React from 'react';
-import type { Commit, Phase, CommitType, HistoryQuality as HistoryQualityMetric } from '../types';
+import type { CommitType, HistoryQuality as HistoryQualityMetric } from '../types';
 
 interface HistoryQualityProps {
-  commits: Commit[];
-  phases: Phase[];
   types: Record<CommitType, number>;
   contribs: string[];
   metric?: HistoryQualityMetric;

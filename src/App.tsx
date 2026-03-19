@@ -79,7 +79,7 @@ function App() {
 
           <div className="health-grid">
             <HealthScore commits={commits} phases={phases} />
-            <HistoryQuality commits={commits} phases={phases} types={types || {} as Record<CommitType, number>} contribs={contribs || []} metric={historyQuality} />
+            <HistoryQuality types={types || {} as Record<CommitType, number>} contribs={contribs || []} metric={historyQuality} />
           </div>
 
           <InsightsRow types={types || {} as Record<CommitType, number>} contribs={contribs || []} commits={commits} />
