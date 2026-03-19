@@ -11,13 +11,15 @@ interface PhaseDetailProps {
 }
 
 export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis, onClose }) => {
-  if (!phase) return null;
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(0);
 
   useEffect(() => {
+    if (!phase) return;
     setPage(0);
-  }, [phase.name, phase.start, phase.end]);
+  }, [phase?.name, phase?.start, phase?.end]);
+
+  if (!phase) return null;
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
   const dur = (a: string, b: string) => {
