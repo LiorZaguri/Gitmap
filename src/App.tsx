@@ -69,6 +69,7 @@ function App() {
           
           {selectedPhase && (
             <PhaseDetail
+              key={`${selectedPhase.name}-${selectedPhase.start}-${selectedPhase.end}`}
               phase={selectedPhase}
               repo={repo}
               analysis={analysis}

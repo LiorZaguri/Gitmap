@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Calendar, Clock, FileText, GitBranch, Target, Compass, Users, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Phase, CommitType, AnalysisMeta } from '../types';
 import { TYPE_COLORS } from '../utils/classify';
@@ -13,11 +13,6 @@ interface PhaseDetailProps {
 export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis, onClose }) => {
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(0);
-
-  useEffect(() => {
-    if (!phase) return;
-    setPage(0);
-  }, [phase?.name, phase?.start, phase?.end]);
 
   if (!phase) return null;
 
