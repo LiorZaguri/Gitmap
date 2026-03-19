@@ -78,7 +78,7 @@ describe('fixture-style repo histories', () => {
     expect(name.toLowerCase()).toContain('api');
   });
 
-  it('messy commits still yield a deterministic label-based name', () => {
+  it('messy commits avoid generic commit-type naming', () => {
     const commits = [
       makeCommit('a', 'wip', '2024-01-01', 'A', 'chore'),
       makeCommit('b', 'tmp', '2024-01-02', 'A', 'chore')
@@ -87,8 +87,8 @@ describe('fixture-style repo histories', () => {
     const groups = buildPhasesFromWorkItems(items, commits);
     const fp = buildPhaseFingerprint(groups[0].workItems, groups[0].commits);
     const result = buildPhaseName(fp, groups[0].commits);
-    expect(result.source).toBe('label-scope');
-    expect(result.name).toMatch(/chore/i);
+    expect(result.source).not.toBe('label-scope');
+    expect(result.name.toLowerCase()).not.toMatch(/\b(chore|fix|feat|docs|ci|test)\b/);
   });
 
   it('release-heavy repo flags release signals', () => {

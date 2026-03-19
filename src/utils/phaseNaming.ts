@@ -9,7 +9,8 @@ export interface PhaseNameResult {
 const TITLE_MIN_RATIO = 0.6;
 const DOMAIN_MIN_RATIO = 0.45;
 const LABEL_MIN_RATIO = 0.5;
-const GENERIC_TOKENS = new Set(['feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'tests', 'ci']);
+const GENERIC_TOKENS = new Set(['feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'tests', 'ci', 'build', 'style', 'perf']);
+const GENERIC_LABELS = GENERIC_TOKENS;
 
 export function buildPhaseName(fingerprint: PhaseFingerprint, commits: Commit[]): PhaseNameResult {
   const title = fingerprint.dominantWorkstreamTitles[0];
@@ -24,7 +25,9 @@ export function buildPhaseName(fingerprint: PhaseFingerprint, commits: Commit[])
 
   const label = fingerprint.dominantLabelsScopes[0];
   if (label && (label.count >= 2 || label.ratio >= LABEL_MIN_RATIO)) {
-    return { name: toTitleCase(label.value.replace(/[-_]/g, ' ')), source: 'label-scope' };
+    if (!isGenericLabel(label.value)) {
+      return { name: formatLabelScope(label.value), source: 'label-scope' };
+    }
   }
 
   const topic = buildTopicName(fingerprint);
@@ -45,6 +48,20 @@ function buildTopicName(fingerprint: PhaseFingerprint) {
   if (unique.length === 0) return null;
   const title = unique.slice(0, 2).join(' ');
   return toTitleCase(title);
+}
+
+function isGenericLabel(value: string) {
+  const normalized = value.toLowerCase().trim();
+  if (normalized.includes('(')) return false;
+  return GENERIC_LABELS.has(normalized);
+}
+
+function formatLabelScope(value: string) {
+  const scoped = value.match(/^(\w+)\(([^)]+)\)$/);
+  if (scoped) {
+    return toTitleCase(scoped[2].replace(/[-_]/g, ' '));
+  }
+  return toTitleCase(value.replace(/[-_]/g, ' '));
 }
 
 function normalizeTitle(title: string) {

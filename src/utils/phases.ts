@@ -42,7 +42,7 @@ export function buildPhases(
   let boundarySelection = { boundaries: [] as number[], scores: [] as ReturnType<typeof scoreWorkItemBoundaries>, reasons: {} as Record<number, string> };
   if (workItems.length > 0) {
     const result = segmentWorkItems(workItems, commitBySha);
-    groups = result.groups;
+    groups = mergeWeakGroups(result.groups, result.selection);
     boundarySelection = result.selection;
   } else if (raw.length > 0) {
     groups = [makeGroup(raw)];
@@ -140,6 +140,135 @@ function segmentWorkItems(
   }
 
   return { groups, selection };
+}
+
+function mergeWeakGroups(groups: PhaseGroup[], selection: ReturnType<typeof selectBoundaries>) {
+  if (groups.length <= 1) return groups;
+  const boundaryScoreByIndex = new Map(selection.scores.map(score => [score.index, score.score]));
+  const scoreForBoundary = (index?: number) => (index ? boundaryScoreByIndex.get(index) ?? 0 : 0);
+
+  let i = 0;
+  while (i < groups.length) {
+    const current = groups[i];
+    const fingerprint = buildPhaseFingerprint(current.workItems ?? [], current.items);
+    const naming = buildPhaseName(fingerprint, current.items);
+    const strength = phaseStrengthScore(fingerprint, naming.source);
+    const weak = isWeakPhase(current, fingerprint, naming.source, strength);
+
+    if (!weak || groups.length === 1) {
+      i += 1;
+      continue;
+    }
+
+    const prev = i > 0 ? groups[i - 1] : null;
+    const next = i < groups.length - 1 ? groups[i + 1] : null;
+
+    if (!prev && next) {
+      groups[i + 1] = mergeGroups(current, next);
+      groups.splice(i, 1);
+      continue;
+    }
+    if (prev && !next) {
+      groups[i - 1] = mergeGroups(prev, current);
+      groups.splice(i, 1);
+      i = Math.max(i - 1, 0);
+      continue;
+    }
+    if (prev && next) {
+      const beforeScore = scoreForBoundary(current.workItemStart);
+      const afterScore = scoreForBoundary(current.workItemEnd);
+      let mergeIntoPrev = beforeScore < afterScore;
+      if (beforeScore === afterScore) {
+        const prevFingerprint = buildPhaseFingerprint(prev.workItems ?? [], prev.items);
+        const nextFingerprint = buildPhaseFingerprint(next.workItems ?? [], next.items);
+        const prevStrength = phaseStrengthScore(prevFingerprint, buildPhaseName(prevFingerprint, prev.items).source);
+        const nextStrength = phaseStrengthScore(nextFingerprint, buildPhaseName(nextFingerprint, next.items).source);
+        mergeIntoPrev = prevStrength >= nextStrength;
+      }
+
+      if (mergeIntoPrev) {
+        groups[i - 1] = mergeGroups(prev, current);
+        groups.splice(i, 1);
+        i = Math.max(i - 1, 0);
+      } else {
+        groups[i + 1] = mergeGroups(current, next);
+        groups.splice(i, 1);
+      }
+      continue;
+    }
+
+    i += 1;
+  }
+
+  return groups;
+}
+
+function mergeGroups(left: PhaseGroup, right: PhaseGroup): PhaseGroup {
+  return {
+    ...left,
+    items: [...left.items, ...right.items],
+    start: left.start,
+    end: right.end,
+    branch: left.branch || right.branch,
+    workItems: left.workItems && right.workItems
+      ? [...left.workItems, ...right.workItems]
+      : left.workItems ?? right.workItems,
+    workItemStart: left.workItemStart ?? right.workItemStart,
+    workItemEnd: right.workItemEnd ?? left.workItemEnd
+  };
+}
+
+const GENERIC_LABELS = new Set(['feat', 'fix', 'chore', 'docs', 'ci', 'test', 'tests', 'refactor', 'build', 'style', 'perf']);
+
+function isGenericLabel(value?: string) {
+  if (!value) return false;
+  const normalized = value.toLowerCase().trim();
+  if (normalized.includes('(')) return false;
+  return GENERIC_LABELS.has(normalized);
+}
+
+function phaseStrengthScore(fingerprint: import('../types').PhaseFingerprint, nameSource: import('../types').PhaseNameSource) {
+  let score = 0;
+  const title = fingerprint.dominantWorkstreamTitles[0];
+  const domain = fingerprint.dominantDomains[0];
+  const label = fingerprint.dominantLabelsScopes[0];
+  const topic = fingerprint.dominantTopics[0];
+
+  if (title && (title.count >= 2 || title.ratio >= 0.6)) score += 2;
+  if (domain && domain.count >= 2 && domain.ratio >= 0.5) score += 1.5;
+  if (label && !isGenericLabel(label.value) && label.ratio >= 0.55) score += 1.2;
+  if (topic && topic.ratio >= 0.55) score += 0.8;
+  if (fingerprint.releaseFlags.length > 0) score += 1.2;
+  if (nameSource === 'fallback') score -= 0.4;
+  if (nameSource === 'label-scope' && isGenericLabel(label?.value)) score -= 0.4;
+
+  return score + fingerprint.namingConfidence;
+}
+
+function isWeakPhase(
+  group: PhaseGroup,
+  fingerprint: import('../types').PhaseFingerprint,
+  nameSource: import('../types').PhaseNameSource,
+  strengthScore: number
+) {
+  const workItemCount = group.workItems?.length ?? 0;
+  const dominantLabel = fingerprint.dominantLabelsScopes[0]?.value;
+  const genericLabel = isGenericLabel(dominantLabel);
+  const lowSignal = fingerprint.namingConfidence < 0.45;
+  const tiny = workItemCount <= 3;
+  const release = fingerprint.releaseFlags.length > 0;
+  const strongIdentity =
+    release ||
+    (fingerprint.dominantWorkstreamTitles[0]?.ratio ?? 0) >= 0.6 ||
+    (fingerprint.dominantDomains[0]?.ratio ?? 0) >= 0.5 ||
+    (!genericLabel && (fingerprint.dominantLabelsScopes[0]?.ratio ?? 0) >= 0.6);
+
+  if (strongIdentity) return false;
+  if (nameSource === 'fallback') return true;
+  if (nameSource === 'label-scope' && genericLabel) return true;
+  if (tiny && lowSignal) return true;
+  if (strengthScore < 1.2 && workItemCount <= 4) return true;
+  return false;
 }
 
 function collectCommits(workItems: WorkItem[], commitBySha: Map<string, Commit>) {
