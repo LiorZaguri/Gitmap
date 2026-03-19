@@ -8,13 +8,27 @@ interface InputPanelProps {
 export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading }) => {
   const [repo, setRepo] = useState(() => localStorage.getItem('gitmap_repo') ?? '');
   const [token, setToken] = useState('');
+  const [repoError, setRepoError] = useState<string | null>(null);
+
+  const normalizeRepo = (raw: string) => {
+    const trimmed = raw.trim().replace(/\/+$/, '');
+    if (!trimmed) return { value: '', error: 'Please enter a repository' };
+
+    const urlMatch = trimmed.match(/^https?:\/\/github\.com\/([^/]+\/[^/]+)$/i);
+    const value = urlMatch ? urlMatch[1] : trimmed;
+    const valid = /^[\w.-]+\/[\w.-]+$/.test(value);
+    if (!valid) return { value, error: 'Repo must be owner/repo or a GitHub URL' };
+    return { value, error: null };
+  };
 
   const handleGenerate = () => {
-    if (!repo || !repo.includes('/')) {
-      alert('Please enter a valid repo (owner/repo)');
+    const { value, error } = normalizeRepo(repo);
+    setRepoError(error);
+    if (error) {
       return;
     }
-    onGenerate(repo, token);
+    if (value !== repo) setRepo(value);
+    onGenerate(value, token);
   };
 
   return (
@@ -25,10 +39,23 @@ export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading }) =
           <input
             type="text"
             value={repo}
-            onChange={(e) => setRepo(e.target.value)}
-            placeholder="owner/repo"
+            onChange={(e) => {
+              setRepo(e.target.value);
+              if (repoError) setRepoError(null);
+            }}
+            onBlur={() => {
+              const { value, error } = normalizeRepo(repo);
+              setRepoError(error);
+              if (!error && value !== repo) setRepo(value);
+            }}
+            placeholder="owner/repo or https://github.com/owner/repo"
             style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '9px 12px', fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text)', outline: 'none' }}
           />
+          {repoError && (
+            <div style={{ fontSize: '11px', color: 'var(--red)', marginTop: '6px' }}>
+              {repoError}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.08em' }}>
