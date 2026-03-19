@@ -15,26 +15,8 @@ export const TYPE_COLORS: Record<CommitType, string> = {
   other: '#a78bfa'
 };
 
-export const DOMAINS = [
-  { re: /dsl|compiler|lexer|parser|ast|token/i, n: 'DSL Compiler' },
-  { re: /auth|login|session|jwt|oauth|signup/i, n: 'Authentication' },
-  { re: /ui|component|design|style|css|layout/i, n: 'UI Components' },
-  { re: /api|endpoint|route|server|express/i, n: 'API Layer' },
-  { re: /database|schema|migration|postgres|sql/i, n: 'Database' },
-  { re: /test|spec|coverage|jest|vitest/i, n: 'Testing' },
-  { re: /deploy|ci|docker|infra|pipeline|action/i, n: 'Infrastructure' },
-  { re: /kpi|metric|chart|graph|visual|dashboard/i, n: 'Data Visualization' },
-  { re: /runtime|render|host|widget|tool/i, n: 'Runtime Engine' },
-  { re: /generation|llm|ai|prompt|model/i, n: 'AI Generation' },
-  { re: /init|setup|scaffold|bootstrap|initial/i, n: 'Project Setup' },
-  { re: /permission|role|access|security/i, n: 'Permissions' },
-  { re: /mobile|native|pwa|ios|android/i, n: 'Mobile' },
-  { re: /rich|component|kpi|banner|tabs/i, n: 'Rich Components' },
-  { re: /i18n|locale|translat|language/i, n: 'Internationalization' },
-  { re: /performance|optim|cache|speed/i, n: 'Performance' },
-];
-
 export function cls(msg: string): CommitType {
+  if (!msg) return 'other';
   const m = msg.toLowerCase();
   if (/^feat|^add |^implement|^build|^creat|^introduc/i.test(m)) return 'feat';
   if (/^fix|^bug|^patch|^resolv|^hotfix/i.test(m)) return 'fix';
@@ -44,13 +26,11 @@ export function cls(msg: string): CommitType {
   return 'other';
 }
 
-export function pname(msg: string, branch?: string): string {
+export function pname(_msg: string, branch?: string): string {
   if (branch && branch !== 'main' && branch !== 'master' && branch !== 'HEAD') {
     const n = branch.replace(/^(feat|fix|feature|hotfix|chore|release|dev)\//i, '').replace(/[-_]/g, ' ');
     return n.charAt(0).toUpperCase() + n.slice(1);
   }
-  for (const d of DOMAINS) {
-    if (d.re.test(msg)) return d.n;
-  }
   return 'General';
 }
+

@@ -36,8 +36,17 @@ export function useGitHub() {
         if (d.length < 100) break;
       }
 
-      // CRITICAL: Reverse so oldest commits come first
-      pages.reverse();
+      // Filter out any malformed commits before processing
+      const validCommits = pages.filter(c => 
+        c && 
+        c.sha && 
+        c.commit && 
+        c.commit.message && 
+        c.commit.author && 
+        c.commit.author.date &&
+        c.commit.author.name
+      );
+      validCommits.reverse();
 
       // 2. Fetch branches for mapping
       const br = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, { headers: h });
@@ -56,7 +65,7 @@ export function useGitHub() {
       }));
 
       // 4. Enrich commits with branch info and classify
-      const enriched: Commit[] = pages.map(c => ({
+      const enriched: Commit[] = validCommits.map(c => ({
         sha: c.sha,
         msg: c.commit.message.split('\n')[0],
         date: c.commit.author.date,
