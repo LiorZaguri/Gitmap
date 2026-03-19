@@ -52,17 +52,29 @@ export function useGitHub() {
       const br = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, { headers: h });
       const branches = br.ok ? await br.json() : [];
 
-      // 3. Map branches to commits (limited to first 12 branches for performance)
+      // 3. Map branches to commits (Feature branches take priority over main)
       const brMap: Record<string, string> = {};
-      await Promise.allSettled(branches.slice(0, 12).map(async (b: any) => {
-        const r = await fetch(`https://api.github.com/repos/${repo}/commits?sha=${b.name}&per_page=50`, { headers: h });
-        if (r.ok) {
-          const bc = await r.json();
-          bc.forEach((c: any) => {
-            if (!brMap[c.sha]) brMap[c.sha] = b.name;
-          });
-        }
-      }));
+      
+      // Default all fetched commits to main/master first
+      validCommits.forEach(c => {
+        brMap[c.sha] = 'main';
+      });
+
+      // Second pass — fetch each feature branch and OVERRIDE main mapping
+      await Promise.allSettled(branches
+        .filter((b: any) => b.name !== 'main' && b.name !== 'master')
+        .slice(0, 15) // Limit to avoid hitting rate limits too fast
+        .map(async (b: any) => {
+          const r = await fetch(`https://api.github.com/repos/${repo}/commits?sha=${b.name}&per_page=100`, { headers: h });
+          if (r.ok) {
+            const bc = await r.json();
+            bc.forEach((c: any) => {
+              // Always override — feature branch wins over main
+              brMap[c.sha] = b.name;
+            });
+          }
+        })
+      );
 
       // 4. Enrich commits with branch info and classify
       const enriched: Commit[] = validCommits.map(c => ({
