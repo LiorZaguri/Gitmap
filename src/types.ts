@@ -40,6 +40,19 @@ export interface Phase {
   color: string;
   status: PhaseStatus;
   idx: number;
+  fingerprint?: PhaseFingerprint;
+}
+
+export interface PhaseFingerprint {
+  dominantDomains: Array<{ value: string; count: number; ratio: number }>;
+  dominantTopics: Array<{ token: string; weight: number; ratio: number }>;
+  dominantLabelsScopes: Array<{ value: string; count: number; ratio: number }>;
+  contributors: string[];
+  commitCount: number;
+  startDate: string;
+  endDate: string;
+  releaseFlags: string[];
+  namingConfidence: number;
 }
 
 export interface AnalysisMeta {

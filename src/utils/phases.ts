@@ -2,11 +2,13 @@ import type { Commit, Phase, PhaseStatus, WorkItem } from '../types';
 import type { PullRequestMeta } from './github';
 import { COLORS, STOP_WORDS, toTitleCase } from './classify';
 import { scoreWorkItemBoundaries, selectBoundaries } from './boundaries';
+import { buildPhaseFingerprint } from './phaseFingerprint';
 
 interface PhaseGroup {
   name: string;
   branch: string;
   items: Commit[];
+  workItems?: WorkItem[];
   start: string;
   end: string;
 }
@@ -70,6 +72,7 @@ export function buildPhases(
 
     return {
       ...g,
+      fingerprint: buildPhaseFingerprint(g.workItems ?? [], g.items),
       status,
       color: COLORS[i % COLORS.length],
       idx: i
@@ -107,14 +110,14 @@ function segmentWorkItems(
     const slice = workItems.slice(start, boundary);
     if (slice.length > 0) {
       const commits = collectCommits(slice, commitBySha);
-      if (commits.length > 0) groups.push(makeGroup(commits, context));
+      if (commits.length > 0) groups.push(makeGroup(commits, context, slice));
     }
     start = boundary;
   });
   const tail = workItems.slice(start);
   if (tail.length > 0) {
     const commits = collectCommits(tail, commitBySha);
-    if (commits.length > 0) groups.push(makeGroup(commits, context));
+    if (commits.length > 0) groups.push(makeGroup(commits, context, tail));
   }
 
   return groups;
@@ -545,7 +548,8 @@ function mergeAdjacentSameName(
 
 function makeGroup(
   commits: Commit[],
-  context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
+  context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> },
+  workItems?: WorkItem[]
 ): PhaseGroup {
   const start = commits[0].date;
   const end = commits[commits.length - 1].date;
@@ -554,7 +558,8 @@ function makeGroup(
     items: commits,
     start,
     end,
-    branch: commits[0].branch || 'main'
+    branch: commits[0].branch || 'main',
+    workItems
   };
 }
 
