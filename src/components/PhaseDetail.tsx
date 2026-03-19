@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Phase, CommitType, AnalysisMeta } from '../types';
 import { TYPE_COLORS } from '../utils/classify';
 
@@ -11,6 +11,12 @@ interface PhaseDetailProps {
 
 export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis, onClose }) => {
   if (!phase) return null;
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    setPage(0);
+  }, [phase.name, phase.start, phase.end]);
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
   const dur = (a: string, b: string) => {
@@ -45,6 +51,13 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
   const groupingLabel = analysis?.groupingLabel === 'branch'
     ? 'Branch patterns'
     : (analysis?.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals');
+
+  const totalItems = phase.items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const pageSafe = Math.min(page, totalPages - 1);
+  const startIdx = pageSafe * PAGE_SIZE;
+  const endIdx = Math.min(startIdx + PAGE_SIZE, totalItems);
+  const pageItems = phase.items.slice(startIdx, endIdx);
 
   return (
     <div className="phase-detail">
@@ -91,7 +104,7 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         <div className="sub-road-title">What happened in this phase</div>
         <div className="sub-road-wrap">
           <div className="sub-road-line"></div>
-          {phase.items.slice(0, 25).map((item, idx) => (
+          {pageItems.map((item, idx) => (
             <div key={idx} className="sub-item">
               <div className="sub-node" style={{ background: TYPE_COLORS[item.type as CommitType] || '#888' }}></div>
               <div className="sub-content">
@@ -108,8 +121,18 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
               </div>
             </div>
           ))}
-          {phase.items.length > 25 && (
-            <div className="sub-more">+{phase.items.length - 25} more commits in this phase</div>
+          {totalItems > PAGE_SIZE && (
+            <div className="sub-pagination">
+              <button className="page-btn" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={pageSafe === 0}>
+                ← Prev
+              </button>
+              <span className="page-meta">
+                Showing {startIdx + 1}-{endIdx} of {totalItems}
+              </span>
+              <button className="page-btn" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={pageSafe >= totalPages - 1}>
+                Next →
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -153,7 +176,10 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         .sub-msg { font-size: 12px; color: var(--text2); line-height: 1.4 }
         .sub-link { font-size: 11px; color: var(--green); text-decoration: none; display: inline-block; margin-top: 6px }
         .sub-link:hover { text-decoration: underline }
-        .sub-more { font-size: 11px; color: var(--text3); text-align: center; padding: 6px 0; font-family: 'JetBrains Mono', monospace }
+        .sub-pagination { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 8px 0; }
+        .page-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-family: 'JetBrains Mono', monospace; }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .page-meta { font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
         .t-feat { background: rgba(0,208,132,0.1); color: var(--green) }
         .t-fix { background: rgba(255,85,85,0.1); color: #ff9999 }
         .t-refactor { background: rgba(77,159,255,0.1); color: var(--blue) }
