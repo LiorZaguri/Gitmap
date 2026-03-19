@@ -1,4 +1,4 @@
-export type CommitType = 'feat' | 'fix' | 'refactor' | 'docs' | 'chore' | 'other';
+export type CommitType = 'feat' | 'fix' | 'refactor' | 'docs' | 'test' | 'ci' | 'chore' | 'unknown';
 
 export interface Commit {
   sha: string;

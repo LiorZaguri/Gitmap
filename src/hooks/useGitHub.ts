@@ -176,8 +176,10 @@ export function useGitHub() {
         fix: 0,
         refactor: 0,
         docs: 0,
+        test: 0,
+        ci: 0,
         chore: 0,
-        other: 0
+        unknown: 0
       };
       enriched.forEach(c => {
         types[c.type] = (types[c.type] || 0) + 1;

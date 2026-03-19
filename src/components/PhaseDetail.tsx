@@ -24,7 +24,10 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, onClose }) => {
     fix: phase.items.filter(x => x.type === 'fix').length,
     refactor: phase.items.filter(x => x.type === 'refactor').length,
     docs: phase.items.filter(x => x.type === 'docs').length,
+    test: phase.items.filter(x => x.type === 'test').length,
+    ci: phase.items.filter(x => x.type === 'ci').length,
     chore: phase.items.filter(x => x.type === 'chore').length,
+    unknown: phase.items.filter(x => x.type === 'unknown').length,
   };
 
   const statusCls = `s-${phase.status}`;
@@ -48,7 +51,10 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, onClose }) => {
           {counts.fix > 0 && <span className="badge b-fix">{counts.fix} fix</span>}
           {counts.refactor > 0 && <span className="badge b-ref">{counts.refactor} refactor</span>}
           {counts.docs > 0 && <span className="badge b-docs">{counts.docs} docs</span>}
+          {counts.test > 0 && <span className="badge b-test">{counts.test} test</span>}
+          {counts.ci > 0 && <span className="badge b-ci">{counts.ci} ci</span>}
           {counts.chore > 0 && <span className="badge b-chore">{counts.chore} chore</span>}
+          {counts.unknown > 0 && <span className="badge b-unknown">{counts.unknown} unknown</span>}
         </div>
       </div>
 
@@ -91,6 +97,9 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, onClose }) => {
         .b-ref { background: rgba(77,159,255,0.1); color: var(--blue) }
         .b-chore { background: rgba(145,145,164,0.1); color: var(--text2) }
         .b-docs { background: rgba(255,184,77,0.1); color: var(--amber) }
+        .b-test { background: rgba(90,248,232,0.1); color: var(--teal) }
+        .b-ci { background: rgba(167,139,250,0.1); color: var(--purple) }
+        .b-unknown { background: rgba(156,163,175,0.1); color: #9ca3af }
         .status-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px }
         .s-active { background: rgba(0,208,132,0.1); color: var(--green) }
         .s-done { background: rgba(145,145,164,0.1); color: var(--text2) }
@@ -111,7 +120,10 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, onClose }) => {
         .t-fix { background: rgba(255,85,85,0.1); color: #ff9999 }
         .t-refactor { background: rgba(77,159,255,0.1); color: var(--blue) }
         .t-docs { background: rgba(255,184,77,0.1); color: var(--amber) }
+        .t-test { background: rgba(90,248,232,0.1); color: var(--teal) }
+        .t-ci { background: rgba(167,139,250,0.1); color: var(--purple) }
         .t-chore { background: rgba(145,145,164,0.1); color: var(--text2) }
+        .t-unknown { background: rgba(156,163,175,0.1); color: #9ca3af }
       `}</style>
     </div>
   );
