@@ -63,6 +63,9 @@ function App() {
           <div style={{ margin: '0 0 20px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
             Coverage: {analysis.commitsAnalyzed} commits analyzed, {analysis.branchesCompared} branches compared. Confidence: {analysis.confidence}.
           </div>
+          <div style={{ margin: '0 0 16px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
+            Grouping: {analysis.groupingLabel === 'branch' ? 'Branch patterns' : (analysis.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals')}. Using {analysis.groupingMode === 'branch' ? 'branch' : 'time-gap'} grouping (non-main commits {Math.round(analysis.branchRatio * 100)}%).
+          </div>
           
           <p style={{ fontSize: '12px', color: 'var(--text3)', textAlign: 'center', marginBottom: '16px', fontFamily: 'JetBrains Mono, monospace' }}>
             Click any pin to explore that phase ↓

@@ -31,4 +31,7 @@ export interface AnalysisMeta {
   maxBranches: number;
   partial: boolean;
   confidence: 'high' | 'medium' | 'low';
+  groupingMode: 'branch' | 'time-gap';
+  groupingLabel: 'branch' | 'time-gap' | 'mixed';
+  branchRatio: number;
 }

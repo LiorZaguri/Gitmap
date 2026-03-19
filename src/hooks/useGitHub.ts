@@ -166,7 +166,7 @@ export function useGitHub() {
 
       // 5. Build phases from enriched commits
       setLoadingStage('Analyzing phases');
-      const phases = buildPhases(enriched);
+      const { phases, grouping } = buildPhases(enriched);
 
 
       // 6. Calculate stats
@@ -206,7 +206,10 @@ export function useGitHub() {
           maxCommits: MAX_COMMITS,
           maxBranches: MAX_BRANCHES,
           partial,
-          confidence
+          confidence,
+          groupingMode: grouping.mode,
+          groupingLabel: grouping.label,
+          branchRatio: grouping.branchRatio
         }
       });
       
