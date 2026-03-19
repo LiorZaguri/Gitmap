@@ -56,7 +56,6 @@ export function useGitHub() {
         c.commit.author.date &&
         c.commit.author.name
       );
-      validCommits.reverse();
       if (validCommits.length === 0) {
         throw new Error('Repo has no commits to analyze.');
       }
@@ -71,7 +70,7 @@ export function useGitHub() {
         type: cls(c.commit.message.split('\n')[0])
       }));
 
-      // CRITICAL: Reverse so oldest commits come first
+      // CRITICAL: GitHub returns newest-first; reverse so oldest commits come first
       enriched.reverse();
 
       const firstDate = new Date(enriched[0].date).getTime();
