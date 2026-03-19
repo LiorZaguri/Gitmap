@@ -29,4 +29,6 @@ export interface AnalysisMeta {
   hitBranchLimit: boolean;
   maxCommits: number;
   maxBranches: number;
+  partial: boolean;
+  confidence: 'high' | 'medium' | 'low';
 }

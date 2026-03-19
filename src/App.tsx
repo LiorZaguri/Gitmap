@@ -60,6 +60,9 @@ function App() {
               {analysis.hitBranchLimit && ` Compared up to ${analysis.maxBranches} branches.`}
             </div>
           )}
+          <div style={{ margin: '0 0 20px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
+            Coverage: {analysis.commitsAnalyzed} commits analyzed, {analysis.branchesCompared} branches compared. Confidence: {analysis.confidence}.
+          </div>
           
           <p style={{ fontSize: '12px', color: 'var(--text3)', textAlign: 'center', marginBottom: '16px', fontFamily: 'JetBrains Mono, monospace' }}>
             Click any pin to explore that phase ↓

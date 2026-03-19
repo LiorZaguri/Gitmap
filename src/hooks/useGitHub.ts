@@ -189,6 +189,9 @@ export function useGitHub() {
       const lastDate = new Date(enriched[enriched.length - 1].date).getTime();
       const totalDays = Math.max(Math.round(Math.abs(lastDate - firstDate) / 86400000), 1);
 
+      const partial = hitCommitLimit || hitBranchLimit;
+      const confidence = !partial ? 'high' : (hitCommitLimit && hitBranchLimit ? 'low' : 'medium');
+
       setData({
         commits: enriched,
         phases,
@@ -201,7 +204,9 @@ export function useGitHub() {
           hitCommitLimit,
           hitBranchLimit,
           maxCommits: MAX_COMMITS,
-          maxBranches: MAX_BRANCHES
+          maxBranches: MAX_BRANCHES,
+          partial,
+          confidence
         }
       });
       
