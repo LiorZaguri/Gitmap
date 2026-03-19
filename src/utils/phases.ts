@@ -195,13 +195,12 @@ function groupByTimeGaps(commits: Commit[]) {
 }
 
 function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[], boundaryHints: number[]) {
-  if (groups.length >= 4) return groups;
-  if (commits.length < 200) return groups;
-
   const first = new Date(commits[0].date).getTime();
   const last = new Date(commits[commits.length - 1].date).getTime();
   const totalDays = Math.max(Math.round(Math.abs(last - first) / 86400000), 1);
-  if (totalDays < 60) return groups;
+  if (groups.length >= 4) return groups;
+  const substantial = commits.length >= 150 || totalDays >= 90;
+  if (!substantial) return groups;
 
   const target = Math.min(10, Math.max(4, Math.round(totalDays / 30)));
   const hinted = buildHintedGroups(commits, boundaryHints, target);
