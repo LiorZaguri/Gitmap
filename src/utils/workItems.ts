@@ -1,6 +1,7 @@
 import type { Commit, WorkItem, WorkItemKind } from '../types';
-import type { PullRequestMeta } from './github';
+import type { PullRequestMeta, ReleaseMeta } from './github';
 import { extractPathDomainSummary } from './pathDomains';
+import { detectReleaseFlags } from './releaseSignals';
 import { extractTopicWeights, mergeTopicWeights, toTopicTokenList } from './topics';
 
 interface WorkItemDraft {
@@ -27,7 +28,7 @@ function titleForWindow(commits: Commit[]) {
 export function buildWorkItems(
   commits: Commit[],
   pullRequests: Record<string, PullRequestMeta>,
-  options?: { windowSize?: number; pathDomains?: Record<string, string> }
+  options?: { windowSize?: number; pathDomains?: Record<string, string>; releaseMeta?: ReleaseMeta | null }
 ): WorkItem[] {
   const windowSize = Math.max(1, options?.windowSize ?? DEFAULT_WINDOW);
   const items: WorkItemDraft[] = [];
@@ -74,7 +75,7 @@ export function buildWorkItems(
 
   return items
     .filter(item => item.commits.length > 0)
-    .map(item => toWorkItem(item));
+    .map(item => toWorkItem(item, options?.releaseMeta));
 }
 
 function createDraft(
@@ -144,7 +145,7 @@ function isSimilarCommit(
   return overlap >= MIN_TOKEN_OVERLAP && ratio >= MIN_TOKEN_RATIO;
 }
 
-function toWorkItem(item: WorkItemDraft): WorkItem {
+function toWorkItem(item: WorkItemDraft, releaseMeta?: ReleaseMeta | null): WorkItem {
   const commits = item.commits;
   const commitShas = commits.map(c => c.sha);
   const contributors = Array.from(item.contributors);
@@ -156,7 +157,11 @@ function toWorkItem(item: WorkItemDraft): WorkItem {
   const typesScopes = Array.from(item.typesScopes);
   const changedFiles = item.pullRequest?.files ?? [];
   const topicTokens = toTopicTokenList(item.topicWeights);
-  const releaseFlags: string[] = [];
+  const releaseFlags = detectReleaseFlags({
+    commits,
+    pullRequest: item.pullRequest,
+    release: releaseMeta
+  });
 
   return {
     kind: item.kind,

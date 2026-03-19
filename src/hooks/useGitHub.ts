@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import type { Commit, Phase, CommitType, AnalysisMeta, WorkItem } from '../types';
 import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
-import { fetchGitHubSnapshot, fetchMergeCommitHints, fetchCommitPathDomains, fetchPullRequestMetadata, type PullRequestMeta } from '../utils/github';
+import { fetchGitHubSnapshot, fetchMergeCommitHints, fetchCommitPathDomains, fetchPullRequestMetadata, fetchTagOrRelease, type PullRequestMeta, type ReleaseMeta } from '../utils/github';
 import { computeConfidence } from '../utils/analysisMeta';
 import { buildWorkItems } from '../utils/workItems';
 
@@ -79,6 +79,7 @@ export function useGitHub() {
       let boundaryHints: number[] = [];
       let pathDomains: Record<string, string> = {};
       let pullRequests: Record<string, PullRequestMeta> = {};
+      let releaseMeta: ReleaseMeta | null = null;
       if (enriched.length >= 200 && totalDays >= 60) {
         boundaryHints = await fetchMergeCommitHints(
           repo,
@@ -106,9 +107,16 @@ export function useGitHub() {
           pullRequests = {};
         }
       }
+      setLoadingStage('Fetching release context');
+      try {
+        releaseMeta = await fetchTagOrRelease(repo, headers);
+      } catch (err) {
+        console.warn('Failed to fetch release metadata:', err);
+        releaseMeta = null;
+      }
 
       // 5. Build work items before phases
-      const workItems = buildWorkItems(enriched, pullRequests, { windowSize: 4, pathDomains });
+      const workItems = buildWorkItems(enriched, pullRequests, { windowSize: 4, pathDomains, releaseMeta });
 
       // 6. Build phases from enriched commits
       setLoadingStage('Analyzing phases');
