@@ -17,6 +17,7 @@ const DOMAIN_MAP = [
   { re: /database|schema|migration|postgres|sql/i, name: 'Database' },
   { re: /test|spec|coverage|jest|vitest/i, name: 'Testing' },
   { re: /deploy|ci|docker|infra|pipeline|action/i, name: 'Infrastructure' },
+  { re: /release|version|changelog|tag/i, name: 'Release' },
   { re: /kpi|metric|chart|graph|visual|dashboard/i, name: 'Data Visualization' },
   { re: /runtime|render|host|widget|tool/i, name: 'Runtime Engine' },
   { re: /generation|llm|ai|prompt|model/i, name: 'AI Generation' },
@@ -156,6 +157,28 @@ function nameFromBranch(branch: string, commits: Commit[]): string {
   return toTitleCase(baseName);
 }
 
+function topicFromCommit(commit: Commit) {
+  if (commit.branch && !['main', 'master', 'HEAD'].includes(commit.branch)) {
+    const baseName = commit.branch
+      .replace(/^(feat|fix|feature|hotfix|chore|release|dev)\//i, '')
+      .replace(/[-_]/g, ' ')
+      .trim();
+    const normalized = baseName.toLowerCase();
+    const tooGeneric = !normalized || ['main', 'master', 'dev', 'release', 'feature', 'fix', 'chore'].includes(normalized);
+    if (!tooGeneric) return toTitleCase(baseName);
+  }
+
+  const msg = commit.msg.toLowerCase();
+  const scopeMatch = commit.msg.match(/\w+\(([^)]+)\):/);
+  const scope = scopeMatch?.[1]?.trim();
+  if (scope && scope.length >= 3) return toTitleCase(scope);
+
+  const domain = DOMAIN_MAP.find(d => d.re.test(msg));
+  if (domain) return domain.name;
+
+  return null;
+}
+
 function domainNameFromCommits(commits: Commit[]) {
   const text = commits.map(c => c.msg).join(' ').toLowerCase();
   const matches = DOMAIN_MAP
@@ -202,6 +225,11 @@ function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[], boundary
   const substantial = commits.length >= 150 || totalDays >= 90;
   if (!substantial) return groups;
 
+  const topicGroups = buildTopicGroups(commits, boundaryHints);
+  if (topicGroups.length > groups.length) {
+    return topicGroups;
+  }
+
   const target = Math.min(10, Math.max(4, Math.round(totalDays / 30)));
   const hinted = buildHintedGroups(commits, boundaryHints, target);
   if (hinted.length >= 4) {
@@ -218,6 +246,93 @@ function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[], boundary
   }
 
   return fallback.length >= groups.length ? fallback : groups;
+}
+
+function buildTopicGroups(commits: Commit[], boundaryHints: number[]) {
+  const topics = commits.map(topicFromCommit);
+  const hintSet = new Set(boundaryHints);
+  const groups: PhaseGroup[] = [];
+  const window = 8;
+  const minHits = 3;
+  const minSize = 8;
+
+  let start = 0;
+  let currentTopic = topics[0] || null;
+
+  for (let i = 1; i < commits.length; i++) {
+    if (hintSet.has(i)) {
+      const slice = commits.slice(start, i);
+      if (slice.length) groups.push(makeGroup(slice));
+      start = i;
+      currentTopic = topics[i] || currentTopic;
+      continue;
+    }
+
+    const t = topics[i];
+    if (t && t !== currentTopic) {
+      let hits = 0;
+      for (let j = i; j < Math.min(commits.length, i + window); j++) {
+        if (topics[j] === t) hits += 1;
+      }
+      if (hits >= minHits) {
+        const slice = commits.slice(start, i);
+        if (slice.length) groups.push(makeGroup(slice));
+        start = i;
+        currentTopic = t;
+      }
+    }
+  }
+
+  const tail = commits.slice(start);
+  if (tail.length) groups.push(makeGroup(tail));
+
+  const compacted = mergeSmallGroups(groups, minSize);
+  return mergeAdjacentSameName(compacted);
+}
+
+function mergeSmallGroups(groups: PhaseGroup[], minSize: number) {
+  if (groups.length <= 1) return groups;
+  const merged: PhaseGroup[] = [];
+  for (const group of groups) {
+    if (group.items.length < minSize && merged.length > 0) {
+      const prev = merged[merged.length - 1];
+      prev.items.push(...group.items);
+      prev.end = group.end;
+      prev.name = nameFromCommits(prev.items);
+      prev.branch = prev.branch || group.branch;
+    } else {
+      merged.push(group);
+    }
+  }
+
+  if (merged.length > 1 && merged[0].items.length < minSize) {
+    const first = merged.shift();
+    if (first) {
+      merged[0].items = [...first.items, ...merged[0].items];
+      merged[0].start = first.start;
+      merged[0].name = nameFromCommits(merged[0].items);
+    }
+  }
+
+  return merged;
+}
+
+function mergeAdjacentSameName(groups: PhaseGroup[]) {
+  if (groups.length <= 1) return groups;
+  const merged: PhaseGroup[] = [groups[0]];
+  for (let i = 1; i < groups.length; i++) {
+    const prev = merged[merged.length - 1];
+    const next = groups[i];
+    if (prev.name === next.name) {
+      prev.items.push(...next.items);
+      prev.end = next.end;
+      prev.name = nameFromCommits(prev.items);
+      prev.branch = prev.branch || next.branch;
+    } else {
+      merged.push(next);
+    }
+  }
+  return merged;
 }
 
 function buildHintedGroups(commits: Commit[], boundaryHints: number[], target: number) {
