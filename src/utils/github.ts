@@ -1,3 +1,5 @@
+import { extractPathDomainSummary } from './pathDomains';
+
 export interface GitHubCommit {
   sha: string;
   commit: {
@@ -51,12 +53,134 @@ interface GitHubPullFile {
   filename: string;
 }
 
+interface GitHubPullCommit {
+  sha: string;
+}
+
+interface GitHubRelease {
+  tag_name?: string;
+  name?: string;
+  published_at?: string | null;
+}
+
+interface GitHubTag {
+  name: string;
+}
+
 export interface PullRequestMeta {
   number: number;
   title: string;
   body?: string;
   files?: string[];
   mergedAt?: string | null;
+}
+
+export interface PullRequestInfo {
+  number: number;
+  title: string;
+  body?: string;
+  mergedAt?: string | null;
+}
+
+export interface ReleaseMeta {
+  tag: string;
+  name?: string;
+  publishedAt?: string | null;
+  source: 'release' | 'tag';
+}
+
+export async function fetchAssociatedPullRequests(
+  repo: string,
+  headers: Record<string, string>,
+  sha: string
+) {
+  const pullHeaders = {
+    ...headers,
+    Accept: 'application/vnd.github.groot-preview+json'
+  };
+  const r = await fetch(`https://api.github.com/repos/${repo}/commits/${sha}/pulls`, { headers: pullHeaders });
+  if (!r.ok) return [] as PullRequestInfo[];
+  const pulls = (await r.json()) as GitHubPull[];
+  return (pulls || [])
+    .filter(p => p?.number && p?.title)
+    .map(p => ({
+      number: p.number,
+      title: p.title,
+      body: p.body,
+      mergedAt: p.merged_at ?? null
+    }));
+}
+
+export async function fetchPullRequestDetails(
+  repo: string,
+  headers: Record<string, string>,
+  number: number
+): Promise<PullRequestInfo | null> {
+  const r = await fetch(`https://api.github.com/repos/${repo}/pulls/${number}`, { headers });
+  if (!r.ok) return null;
+  const pr = (await r.json()) as GitHubPull;
+  if (!pr?.number || !pr?.title) return null;
+  return {
+    number: pr.number,
+    title: pr.title,
+    body: pr.body,
+    mergedAt: pr.merged_at ?? null
+  };
+}
+
+export async function fetchPullRequestFiles(
+  repo: string,
+  headers: Record<string, string>,
+  number: number,
+  options?: { maxFiles?: number }
+): Promise<string[]> {
+  const maxFiles = options?.maxFiles ?? 200;
+  const r = await fetch(`https://api.github.com/repos/${repo}/pulls/${number}/files?per_page=${maxFiles}`, { headers });
+  if (!r.ok) return [];
+  const files = (await r.json()) as GitHubPullFile[];
+  return (files || []).map(f => f.filename).filter(Boolean);
+}
+
+export async function fetchPullRequestCommits(
+  repo: string,
+  headers: Record<string, string>,
+  number: number,
+  options?: { maxCommits?: number }
+): Promise<string[]> {
+  const maxCommits = options?.maxCommits ?? 200;
+  const r = await fetch(`https://api.github.com/repos/${repo}/pulls/${number}/commits?per_page=${maxCommits}`, { headers });
+  if (!r.ok) return [];
+  const commits = (await r.json()) as GitHubPullCommit[];
+  return (commits || []).map(c => c.sha).filter(Boolean);
+}
+
+export async function fetchTagOrRelease(
+  repo: string,
+  headers: Record<string, string>
+): Promise<ReleaseMeta | null> {
+  const releaseRes = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=1`, { headers });
+  if (releaseRes.ok) {
+    const releases = (await releaseRes.json()) as GitHubRelease[];
+    const release = releases?.[0];
+    if (release?.tag_name) {
+      return {
+        tag: release.tag_name,
+        name: release.name,
+        publishedAt: release.published_at ?? null,
+        source: 'release'
+      };
+    }
+  }
+
+  const tagRes = await fetch(`https://api.github.com/repos/${repo}/tags?per_page=1`, { headers });
+  if (!tagRes.ok) return null;
+  const tags = (await tagRes.json()) as GitHubTag[];
+  const tag = tags?.[0];
+  if (!tag?.name) return null;
+  return {
+    tag: tag.name,
+    source: 'tag'
+  };
 }
 
 const toGitHubError = async (r: Response, hasToken: boolean) => {
@@ -152,18 +276,10 @@ export async function fetchCommitPathDomains(
     const data = (await r.json()) as GitHubCommitDetail;
     const files = data.files || [];
     if (files.length < minFiles) continue;
-
-    const counts: Record<string, number> = {};
-    files.forEach(f => {
-      const top = f.filename.split('/')[0] || '(root)';
-      counts[top] = (counts[top] || 0) + 1;
-    });
-    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-    if (!top) continue;
-    const count = top[1];
-    if (count / files.length >= dominance) {
-      const name = top[0].replace(/[-_]/g, ' ').trim();
-      if (name && name !== '(root)') domainMap[sha] = name.replace(/\b\w/g, c => c.toUpperCase());
+    const summary = extractPathDomainSummary(files.map(f => f.filename));
+    if (!summary.dominantDomain) continue;
+    if (summary.concentration >= dominance) {
+      domainMap[sha] = summary.dominantDomain;
     }
   }
 
@@ -185,49 +301,67 @@ export async function fetchPullRequestMetadata(
   const selected = candidates.slice(-maxCommits);
   const prMap: Record<string, PullRequestMeta> = {};
   const filesCache = new Map<number, string[]>();
+  const prInfoCache = new Map<number, PullRequestInfo>();
+  const seenPrNumbers = new Set<number>();
 
-  const pullHeaders = {
-    ...headers,
-    Accept: 'application/vnd.github.groot-preview+json'
-  };
+  const queue = createRequestQueue(2);
 
   for (const c of selected) {
-    const r = await fetch(`https://api.github.com/repos/${repo}/commits/${c.sha}/pulls`, { headers: pullHeaders });
-    if (!r.ok) {
-      const remaining = r.headers.get('x-ratelimit-remaining');
-      if (r.status === 403 && remaining === '0') break;
-      continue;
-    }
-    const pulls = (await r.json()) as GitHubPull[];
+    const pulls = await queue(() => fetchAssociatedPullRequests(repo, headers, c.sha));
     if (!pulls || pulls.length === 0) continue;
     const pr = pulls[0];
     if (!pr?.title) continue;
 
+    let prInfo = prInfoCache.get(pr.number);
+    if (!prInfo) {
+      const fetched = await queue(() => fetchPullRequestDetails(repo, headers, pr.number));
+      prInfo = fetched || pr;
+      prInfoCache.set(pr.number, prInfo);
+    }
+
     let files: string[] | undefined;
-    if (filesCache.has(pr.number)) {
-      files = filesCache.get(pr.number);
-    } else {
-      const fr = await fetch(`https://api.github.com/repos/${repo}/pulls/${pr.number}/files?per_page=${maxFiles}`, { headers });
-      if (fr.ok) {
-        const data = (await fr.json()) as GitHubPullFile[];
-        files = data.map(f => f.filename);
-        filesCache.set(pr.number, files);
-      } else {
-        const remaining = fr.headers.get('x-ratelimit-remaining');
-        if (fr.status === 403 && remaining === '0') break;
-      }
+    if (filesCache.has(prInfo.number)) {
+      files = filesCache.get(prInfo.number);
+    } else if (!seenPrNumbers.has(prInfo.number)) {
+      const fetchedFiles = await queue(() => fetchPullRequestFiles(repo, headers, prInfo.number, { maxFiles }));
+      files = fetchedFiles.length > 0 ? fetchedFiles : undefined;
+      if (files) filesCache.set(prInfo.number, files);
+      seenPrNumbers.add(prInfo.number);
     }
 
     prMap[c.sha] = {
-      number: pr.number,
-      title: pr.title,
-      body: pr.body,
-      mergedAt: pr.merged_at ?? null,
+      number: prInfo.number,
+      title: prInfo.title,
+      body: prInfo.body,
+      mergedAt: prInfo.mergedAt ?? null,
       files
     };
   }
 
   return prMap;
+}
+
+function createRequestQueue(concurrency: number) {
+  let active = 0;
+  const queue: Array<() => void> = [];
+
+  const runNext = () => {
+    const next = queue.shift();
+    if (next) next();
+  };
+
+  return async function enqueue<T>(task: () => Promise<T>): Promise<T> {
+    if (active >= concurrency) {
+      await new Promise<void>(resolve => queue.push(resolve));
+    }
+    active += 1;
+    try {
+      return await task();
+    } finally {
+      active -= 1;
+      runNext();
+    }
+  };
 }
 
 export async function fetchGitHubSnapshot(

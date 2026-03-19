@@ -1,16 +1,15 @@
 import React from 'react';
-import type { Commit, Phase, CommitType } from '../types';
-import { calculateHistoryQuality } from '../utils/historyQuality';
+import type { CommitType, HistoryQuality as HistoryQualityMetric } from '../types';
 
 interface HistoryQualityProps {
-  commits: Commit[];
-  phases: Phase[];
   types: Record<CommitType, number>;
   contribs: string[];
+  metric?: HistoryQualityMetric;
 }
 
-export const HistoryQuality: React.FC<HistoryQualityProps> = ({ commits, phases, types, contribs }) => {
-  const quality = calculateHistoryQuality(commits, phases);
+export const HistoryQuality: React.FC<HistoryQualityProps> = ({ types, contribs, metric }) => {
+  const quality = metric;
+  if (!quality) return null;
   const total = Object.values(types).reduce((a, b) => a + b, 0) || 1;
   const featPct = Math.round(((types.feat || 0) / total) * 100);
   const fixPct = Math.round(((types.fix || 0) / total) * 100);
@@ -57,7 +56,7 @@ export const HistoryQuality: React.FC<HistoryQualityProps> = ({ commits, phases,
             />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 700 }}>
-            {quality.score}%
+          {quality.score}%
           </div>
         </div>
         <div style={{ flex: 1 }}>
@@ -65,16 +64,22 @@ export const HistoryQuality: React.FC<HistoryQualityProps> = ({ commits, phases,
             History quality
           </div>
           <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '4px' }}>
+            PR coverage: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{quality.prCoverage}%</span>
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '4px' }}>
+            Path coherence: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{quality.pathCoherence}%</span>
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '4px' }}>
+            Structured commits: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{quality.structuredCommits}%</span>
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '4px' }}>
+            Release signals: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{quality.releaseSignals}%</span>
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '4px' }}>
             Commit clarity: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{quality.clarity}%</span>
           </div>
-          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '4px' }}>
-            Workstream coherence: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{quality.coherence}%</span>
-          </div>
-          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '4px' }}>
-            Boundary strength: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{quality.boundaries}%</span>
-          </div>
           <div style={{ fontSize: '13px', color: 'var(--text2)' }}>
-            Naming confidence: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{quality.naming}%</span>
+            Contributor continuity: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{quality.continuity}%</span>
           </div>
         </div>
       </div>

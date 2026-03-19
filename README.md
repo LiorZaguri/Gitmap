@@ -13,9 +13,11 @@ It started while I was working on my main project and thinking about my own repo
 Tokens are optional and used only for the current session. They are never stored in the browser.
 
 ## Roadmap inference (high level)
-- Builds phases using branch patterns and semantic signals (PR metadata when available, dominant file paths, merge/release cues), with time gaps as fallback.
-- Labels phases using PR titles, dominant folders, and commit-topic summaries.
-- Shows commit types, contributors, and summary health signals.
+- Segments the default-branch history into contiguous phases using PR-backed work items when available, otherwise small commit windows.
+- Detects dominant file-path domains (folders/packages) and uses them as a primary semantic signal.
+- Uses PR titles, labels/scopes, and commit-topic tokens to name phases.
+- Applies release/merge cues as boundary hints; time gaps are a low-weight fallback only.
+- Reports **History Quality** (how interpretable the history is) and **Roadmap Confidence** (how reliable the inferred phases are).
 
 ## Current limitations
 - Analyzes up to the latest 500 commits.

@@ -46,9 +46,11 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
     .slice(0, 3);
 
   const statusCls = `s-${phase.status}`;
-  const groupingLabel = analysis?.groupingLabel === 'branch'
-    ? 'Branch patterns'
-    : (analysis?.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals');
+  const groupingLabel = analysis?.groupingLabel === 'work-items'
+    ? 'Semantic work items'
+    : (analysis?.groupingLabel === 'branch'
+      ? 'Branch patterns'
+      : (analysis?.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals'));
 
   const totalItems = phase.items.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
@@ -70,8 +72,9 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         <span><Calendar size={12} className="meta-icon" />{fmtDate(phase.start)} <ArrowRight size={12} className="meta-icon" /> {fmtDate(phase.end)}</span>
         <span><Clock size={12} className="meta-icon" />{dur(phase.start, phase.end)}</span>
         <span><FileText size={12} className="meta-icon" />{phase.items.length} commits</span>
-        <span>
+        <span className="meta-branch">
           <GitBranch size={12} className="meta-icon" />
+          <span className="meta-branch-label">Branch hint:</span>
           {repo ? (
             <a className="meta-link" href={`https://github.com/${repo}/tree/${phase.branch}`} target="_blank" rel="noreferrer">
               {phase.branch}
@@ -97,6 +100,16 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
           {contributors.map(([name, count]) => (
             <span key={name} className="contrib-pill">{name} ({count})</span>
           ))}
+        </div>
+      )}
+      {(phase.nameReason || phase.boundaryReason) && (
+        <div className="popup-reasons">
+          {phase.nameReason && (
+            <div><strong>Why this name:</strong> {phase.nameReason}</div>
+          )}
+          {phase.boundaryReason && (
+            <div><strong>Why this boundary:</strong> {phase.boundaryReason}</div>
+          )}
         </div>
       )}
       <div className="sub-road">
@@ -147,8 +160,12 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         .meta-icon { color: var(--text3); }
         .meta-link { color: var(--text); text-decoration: none }
         .meta-link:hover { text-decoration: underline }
+        .meta-branch { color: var(--text3); }
+        .meta-branch-label { color: var(--text3); }
         .popup-badges { display: flex; gap: 6px }
         .popup-contrib { padding: 8px 18px; background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+        .popup-reasons { padding: 10px 18px; background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text2); display: flex; flex-direction: column; gap: 6px }
+        .popup-reasons strong { color: var(--text); font-weight: 600; }
         .contrib-pill { background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; font-size: 11px; color: var(--text) }
         .badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px }
         .b-feat { background: rgba(0,208,132,0.1); color: var(--green) }

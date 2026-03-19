@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
-import type { Commit, Phase, CommitType, AnalysisMeta } from '../types';
+import type { Commit, Phase, CommitType, AnalysisMeta, WorkItem } from '../types';
 import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
-import { fetchGitHubSnapshot, fetchMergeCommitHints, fetchCommitPathDomains, fetchPullRequestMetadata, type PullRequestMeta } from '../utils/github';
+import { fetchGitHubSnapshot, fetchMergeCommitHints, fetchCommitPathDomains, fetchPullRequestMetadata, fetchTagOrRelease, type PullRequestMeta, type ReleaseMeta } from '../utils/github';
 import { computeConfidence } from '../utils/analysisMeta';
+import { calculateHistoryQuality } from '../utils/historyQuality';
+import { buildWorkItems } from '../utils/workItems';
 
 const COMMITS_PER_PAGE = 100;
 const MAX_PAGES = 5;
@@ -17,11 +19,13 @@ export function useGitHub() {
   const [data, setData] = useState<{
     repo: string;
     commits: Commit[];
+    workItems: WorkItem[];
     phases: Phase[];
     types: Record<CommitType, number>;
     contribs: string[];
     totalDays: number;
     analysis: AnalysisMeta;
+    historyQuality?: import('../types').HistoryQuality;
   } | null>(null);
 
   const generate = useCallback(async (repo: string, token: string) => {
@@ -77,6 +81,7 @@ export function useGitHub() {
       let boundaryHints: number[] = [];
       let pathDomains: Record<string, string> = {};
       let pullRequests: Record<string, PullRequestMeta> = {};
+      let releaseMeta: ReleaseMeta | null = null;
       if (enriched.length >= 200 && totalDays >= 60) {
         boundaryHints = await fetchMergeCommitHints(
           repo,
@@ -104,13 +109,23 @@ export function useGitHub() {
           pullRequests = {};
         }
       }
+      setLoadingStage('Fetching release context');
+      try {
+        releaseMeta = await fetchTagOrRelease(repo, headers);
+      } catch (err) {
+        console.warn('Failed to fetch release metadata:', err);
+        releaseMeta = null;
+      }
 
-      // 5. Build phases from enriched commits
+      // 5. Build work items before phases
+      const workItems = buildWorkItems(enriched, pullRequests, { windowSize: 4, pathDomains, releaseMeta });
+
+      // 6. Build phases from enriched commits
       setLoadingStage('Analyzing phases');
-      const { phases, grouping } = buildPhases(enriched, { boundaryHints, pathDomains, pullRequests });
+      const { phases, grouping, roadmapConfidence } = buildPhases(enriched, { boundaryHints, pathDomains, pullRequests, workItems });
 
 
-      // 6. Calculate stats
+      // 7. Calculate stats
       setLoadingStage('Building insights');
       const types: Record<CommitType, number> = {
         feat: 0,
@@ -129,14 +144,17 @@ export function useGitHub() {
       const contribs = [...new Set(enriched.map(c => c.author))];
       
       const { partial, confidence } = computeConfidence(hitCommitLimit, hitBranchLimit);
+      const historyQuality = calculateHistoryQuality(enriched, phases, workItems);
 
       setData({
         repo,
         commits: enriched,
+        workItems,
         phases,
         types,
         contribs,
         totalDays,
+        historyQuality,
         analysis: {
           commitsAnalyzed: enriched.length,
           branchesCompared,
@@ -146,6 +164,8 @@ export function useGitHub() {
           maxBranches: MAX_BRANCHES,
           partial,
           confidence,
+          roadmapConfidence,
+          historyQuality,
           groupingMode: grouping.mode,
           groupingLabel: grouping.label,
           branchRatio: grouping.branchRatio

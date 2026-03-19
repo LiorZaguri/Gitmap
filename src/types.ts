@@ -9,6 +9,26 @@ export interface Commit {
   type: CommitType;
 }
 
+export type WorkItemKind = 'pull_request' | 'commit_window';
+
+export interface WorkItem {
+  kind: WorkItemKind;
+  title: string;
+  bodySummary?: string;
+  commitShas: string[];
+  changedFiles: string[];
+  pathDomains: string[];
+  labels: string[];
+  typesScopes: string[];
+  topicTokens: Array<{ token: string; weight: number }>;
+  contributors: string[];
+  startDate: string;
+  endDate: string;
+  releaseFlags: string[];
+  sourceBranchHint?: string;
+  confidence: number;
+}
+
 export type PhaseStatus = 'active' | 'done' | 'abandoned';
 
 export interface Phase {
@@ -20,6 +40,35 @@ export interface Phase {
   color: string;
   status: PhaseStatus;
   idx: number;
+  fingerprint?: PhaseFingerprint;
+  nameSource?: PhaseNameSource;
+  nameReason?: string;
+  boundaryReason?: string;
+  roadmapConfidence?: RoadmapConfidence;
+}
+
+export type PhaseNameSource = 'workstream' | 'domain' | 'label-scope' | 'topic' | 'fallback';
+
+export interface RoadmapConfidence {
+  score: number;
+  prCoverage: number;
+  pathCoherence: number;
+  boundaryStrength: number;
+  namingClarity: number;
+  releaseStructure: number;
+}
+
+export interface PhaseFingerprint {
+  dominantDomains: Array<{ value: string; count: number; ratio: number }>;
+  dominantTopics: Array<{ token: string; weight: number; ratio: number }>;
+  dominantLabelsScopes: Array<{ value: string; count: number; ratio: number }>;
+  dominantWorkstreamTitles: Array<{ value: string; count: number; ratio: number }>;
+  contributors: string[];
+  commitCount: number;
+  startDate: string;
+  endDate: string;
+  releaseFlags: string[];
+  namingConfidence: number;
 }
 
 export interface AnalysisMeta {
@@ -31,7 +80,20 @@ export interface AnalysisMeta {
   maxBranches: number;
   partial: boolean;
   confidence: 'high' | 'medium' | 'low';
-  groupingMode: 'branch' | 'time-gap';
-  groupingLabel: 'branch' | 'time-gap' | 'mixed';
+  roadmapConfidence?: RoadmapConfidence;
+  historyQuality?: HistoryQuality;
+  groupingMode: 'branch' | 'time-gap' | 'work-items';
+  groupingLabel: 'branch' | 'time-gap' | 'mixed' | 'work-items';
   branchRatio: number;
+}
+
+export interface HistoryQuality {
+  score: number;
+  prCoverage: number;
+  pathCoherence: number;
+  structuredCommits: number;
+  releaseSignals: number;
+  clarity: number;
+  continuity: number;
+  summary: string;
 }
