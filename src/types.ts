@@ -41,12 +41,16 @@ export interface Phase {
   status: PhaseStatus;
   idx: number;
   fingerprint?: PhaseFingerprint;
+  nameSource?: PhaseNameSource;
 }
+
+export type PhaseNameSource = 'workstream' | 'domain' | 'label-scope' | 'topic' | 'fallback';
 
 export interface PhaseFingerprint {
   dominantDomains: Array<{ value: string; count: number; ratio: number }>;
   dominantTopics: Array<{ token: string; weight: number; ratio: number }>;
   dominantLabelsScopes: Array<{ value: string; count: number; ratio: number }>;
+  dominantWorkstreamTitles: Array<{ value: string; count: number; ratio: number }>;
   contributors: string[];
   commitCount: number;
   startDate: string;

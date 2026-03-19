@@ -3,6 +3,7 @@ import type { PullRequestMeta } from './github';
 import { COLORS, STOP_WORDS, toTitleCase } from './classify';
 import { scoreWorkItemBoundaries, selectBoundaries } from './boundaries';
 import { buildPhaseFingerprint } from './phaseFingerprint';
+import { buildPhaseName } from './phaseNaming';
 
 interface PhaseGroup {
   name: string;
@@ -70,9 +71,14 @@ export function buildPhases(
     if (isLast && daysSince < 14) status = 'active';
     else if (daysSince > 90) status = 'abandoned';
 
+    const fingerprint = buildPhaseFingerprint(g.workItems ?? [], g.items);
+    const naming = buildPhaseName(fingerprint, g.items);
+
     return {
       ...g,
-      fingerprint: buildPhaseFingerprint(g.workItems ?? [], g.items),
+      name: naming.name,
+      nameSource: naming.source,
+      fingerprint,
       status,
       color: COLORS[i % COLORS.length],
       idx: i

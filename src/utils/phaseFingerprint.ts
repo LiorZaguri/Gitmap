@@ -6,6 +6,7 @@ export function buildPhaseFingerprint(workItems: WorkItem[], commits: Commit[]):
   const domains = countValues(workItems.flatMap(item => item.pathDomains));
   const topics = countTopicWeights(workItems);
   const labelsScopes = countValues(workItems.flatMap(item => [...item.labels, ...item.typesScopes]));
+  const workstreamTitles = countValues(workItems.map(item => item.title));
   const contributors = uniqueValues(workItems.flatMap(item => item.contributors));
   const releaseFlags = uniqueValues(workItems.flatMap(item => item.releaseFlags));
 
@@ -16,6 +17,7 @@ export function buildPhaseFingerprint(workItems: WorkItem[], commits: Commit[]):
   const dominantDomains = toRatioList(domains, TOP_LIMIT);
   const dominantTopics = toWeightedRatioList(topics, TOP_LIMIT);
   const dominantLabelsScopes = toRatioList(labelsScopes, TOP_LIMIT);
+  const dominantWorkstreamTitles = toRatioList(workstreamTitles, TOP_LIMIT);
 
   const fallbackContribs = contributors.length > 0
     ? contributors
@@ -31,6 +33,7 @@ export function buildPhaseFingerprint(workItems: WorkItem[], commits: Commit[]):
     dominantDomains,
     dominantTopics,
     dominantLabelsScopes,
+    dominantWorkstreamTitles,
     contributors: fallbackContribs,
     commitCount,
     startDate,
