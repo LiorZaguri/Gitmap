@@ -30,13 +30,13 @@ export interface BoundaryWeights {
 }
 
 const DEFAULT_WEIGHTS: BoundaryWeights = {
-  pathDomain: 1.4,
-  taxonomy: 1.1,
-  topic: 1.3,
-  release: 0.9,
-  contributor: 0.7,
-  branch: 0.5,
-  timeGap: 0.3
+  pathDomain: 1.6,
+  taxonomy: 1.3,
+  topic: 1.2,
+  release: 1.2,
+  contributor: 0.6,
+  branch: 0.3,
+  timeGap: 0.2
 };
 
 export function scoreWorkItemBoundaries(workItems: WorkItem[], weights: BoundaryWeights = DEFAULT_WEIGHTS): BoundaryScore[] {
@@ -52,10 +52,10 @@ export function selectBoundaries(
   scores: BoundaryScore[],
   options?: { minGap?: number; minScore?: number; maxPhaseSize?: number; minPhaseSize?: number }
 ): BoundarySelection {
-  const minGap = Math.max(1, options?.minGap ?? 2);
-  const minScore = options?.minScore ?? 0.8;
-  const minPhaseSize = Math.max(2, options?.minPhaseSize ?? 2);
-  const maxPhaseSize = Math.max(minPhaseSize * 2, options?.maxPhaseSize ?? 14);
+  const minGap = Math.max(1, options?.minGap ?? 3);
+  const minScore = options?.minScore ?? 0.88;
+  const minPhaseSize = Math.max(2, options?.minPhaseSize ?? 3);
+  const maxPhaseSize = Math.max(minPhaseSize * 2, options?.maxPhaseSize ?? 16);
 
   const localMax = scores.filter((s, idx) => {
     const prev = scores[idx - 1];

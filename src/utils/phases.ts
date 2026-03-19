@@ -115,10 +115,10 @@ function segmentWorkItems(
 ) {
   const scores = scoreWorkItemBoundaries(workItems);
   const selection = selectBoundaries(workItems, scores, {
-    minGap: 2,
-    minScore: 0.85,
-    minPhaseSize: 2,
-    maxPhaseSize: 14
+    minGap: 3,
+    minScore: 0.9,
+    minPhaseSize: 3,
+    maxPhaseSize: 16
   });
   const boundaries = selection.boundaries;
 
