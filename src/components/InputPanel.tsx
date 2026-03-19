@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 interface InputPanelProps {
   onGenerate: (repo: string, token: string) => void;
@@ -6,23 +6,12 @@ interface InputPanelProps {
 }
 
 export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading }) => {
-  const [repo, setRepo] = useState('');
+  const [repo, setRepo] = useState(() => localStorage.getItem('gitmap_repo') ?? '');
   const [token, setToken] = useState('');
-
-  useEffect(() => {
-    const savedRepo = localStorage.getItem('gitmap_repo');
-    const savedToken = localStorage.getItem('gitmap_token');
-    if (savedRepo) setRepo(savedRepo);
-    if (savedToken) setToken(savedToken);
-  }, []);
 
   const handleGenerate = () => {
     if (!repo || !repo.includes('/')) {
       alert('Please enter a valid repo (owner/repo)');
-      return;
-    }
-    if (!token) {
-      alert('Please enter a GitHub token');
       return;
     }
     onGenerate(repo, token);

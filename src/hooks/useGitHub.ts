@@ -3,6 +3,29 @@ import type { Commit, Phase, CommitType } from '../types';
 import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
 
+interface GitHubCommit {
+  sha: string;
+  commit: {
+    message: string;
+    author: {
+      date: string;
+      name: string;
+    };
+  };
+}
+
+interface GitHubRepo {
+  default_branch?: string;
+}
+
+interface GitHubBranch {
+  name: string;
+}
+
+interface GitHubCompare {
+  commits?: Array<{ sha: string }>;
+}
+
 export function useGitHub() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,20 +47,20 @@ export function useGitHub() {
 
     try {
       // 1. Fetch commits (up to 5 pages)
-      const pages: any[] = [];
+      const pages: GitHubCommit[] = [];
       for (let p = 1; p <= 5; p++) {
         const r = await fetch(`https://api.github.com/repos/${repo}/commits?per_page=100&page=${p}`, { headers: h });
         if (!r.ok) {
-          const e = await r.json();
+          const e = await r.json().catch(() => ({} as { message?: string }));
           throw new Error(e.message || `GitHub error ${r.status}`);
         }
-        const d = await r.json();
+        const d = (await r.json()) as GitHubCommit[];
         pages.push(...d);
         if (d.length < 100) break;
       }
 
       // Filter out any malformed commits before processing
-      const validCommits = pages.filter(c => 
+      const validCommits = pages.filter(c =>
         c && 
         c.sha && 
         c.commit && 
@@ -50,11 +73,11 @@ export function useGitHub() {
 
       // 2. Fetch repo and branches
       const repoRes = await fetch(`https://api.github.com/repos/${repo}`, { headers: h });
-      const repoData = repoRes.ok ? await repoRes.json() : {};
+      const repoData = repoRes.ok ? ((await repoRes.json()) as GitHubRepo) : {};
       const defaultBranch = repoData.default_branch || 'main';
 
       const brRes = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, { headers: h });
-      const branches = brRes.ok ? await brRes.json() : [];
+      const branches = brRes.ok ? ((await brRes.json()) as GitHubBranch[]) : [];
 
       // 3. Map branches to commits (Feature branches take priority over main)
       // Using Compare API to get ONLY unique commits per branch
@@ -62,9 +85,9 @@ export function useGitHub() {
 
       await Promise.allSettled(
         branches
-          .filter((b: any) => b.name !== defaultBranch)
+          .filter((b) => b.name !== defaultBranch)
           .slice(0, 15) // Limit to avoid hitting rate limits
-          .map(async (b: any) => {
+          .map(async (b) => {
             try {
               // Compare API: gives commits in branch but NOT in default branch
               const r = await fetch(
@@ -72,9 +95,9 @@ export function useGitHub() {
                 { headers: h }
               );
               if (!r.ok) return;
-              const data = await r.json();
+              const data = (await r.json()) as GitHubCompare;
               // data.commits = commits unique to this branch
-              (data.commits || []).forEach((c: any) => {
+              (data.commits || []).forEach((c) => {
                 brMap[c.sha] = b.name;
               });
             } catch (e) {
@@ -101,7 +124,14 @@ export function useGitHub() {
 
 
       // 6. Calculate stats
-      const types: Record<CommitType, number> = {} as any;
+      const types: Record<CommitType, number> = {
+        feat: 0,
+        fix: 0,
+        refactor: 0,
+        docs: 0,
+        chore: 0,
+        other: 0
+      };
       enriched.forEach(c => {
         types[c.type] = (types[c.type] || 0) + 1;
       });
@@ -120,12 +150,12 @@ export function useGitHub() {
         totalDays
       });
       
-      // Save to localStorage as requested
+      // Save repo to localStorage for convenience
       localStorage.setItem('gitmap_repo', repo);
-      localStorage.setItem('gitmap_token', token);
 
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
     }
