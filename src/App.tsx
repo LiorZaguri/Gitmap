@@ -11,7 +11,7 @@ import { HealthScore } from './components/HealthScore';
 import { useGitHub } from './hooks/useGitHub';
 
 function App() {
-  const { commits, phases, types, contribs, totalDays, loading, loadingStage, error, generate } = useGitHub();
+  const { commits, phases, types, contribs, totalDays, analysis, loading, loadingStage, error, generate } = useGitHub();
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState<number | null>(null);
 
   const handlePinClick = (idx: number) => {
@@ -50,9 +50,16 @@ function App() {
         </div>
       )}
 
-      {commits && phases && (
+      {commits && phases && analysis && (
         <div style={{ marginTop: '20px' }}>
           <StatsRow commitCount={commits.length} phases={phases} totalDays={totalDays || 1} />
+          {(analysis.hitCommitLimit || analysis.hitBranchLimit) && (
+            <div style={{ margin: '10px 0 20px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
+              Partial analysis:
+              {analysis.hitCommitLimit && ` Analyzed latest ${analysis.maxCommits} commits.`}
+              {analysis.hitBranchLimit && ` Compared up to ${analysis.maxBranches} branches.`}
+            </div>
+          )}
           
           <p style={{ fontSize: '12px', color: 'var(--text3)', textAlign: 'center', marginBottom: '16px', fontFamily: 'JetBrains Mono, monospace' }}>
             Click any pin to explore that phase ↓

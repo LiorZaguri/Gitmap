@@ -1,7 +1,12 @@
 import { useState, useCallback } from 'react';
-import type { Commit, Phase, CommitType } from '../types';
+import type { Commit, Phase, CommitType, AnalysisMeta } from '../types';
 import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
+
+const COMMITS_PER_PAGE = 100;
+const MAX_PAGES = 5;
+const MAX_BRANCHES = 15;
+const MAX_COMMITS = COMMITS_PER_PAGE * MAX_PAGES;
 
 interface GitHubCommit {
   sha: string;
@@ -36,6 +41,7 @@ export function useGitHub() {
     types: Record<CommitType, number>;
     contribs: string[];
     totalDays: number;
+    analysis: AnalysisMeta;
   } | null>(null);
 
   const toGitHubError = async (r: Response, hasToken: boolean) => {
@@ -72,15 +78,17 @@ export function useGitHub() {
     try {
       // 1. Fetch commits (up to 5 pages)
       const pages: GitHubCommit[] = [];
-      for (let p = 1; p <= 5; p++) {
-        const r = await fetch(`https://api.github.com/repos/${repo}/commits?per_page=100&page=${p}`, { headers });
+      let hitCommitLimit = false;
+      for (let p = 1; p <= MAX_PAGES; p++) {
+        const r = await fetch(`https://api.github.com/repos/${repo}/commits?per_page=${COMMITS_PER_PAGE}&page=${p}`, { headers });
         if (!r.ok) {
           const msg = await toGitHubError(r, hasToken);
           throw new Error(msg);
         }
         const d = (await r.json()) as GitHubCommit[];
         pages.push(...d);
-        if (d.length < 100) break;
+        if (d.length < COMMITS_PER_PAGE) break;
+        if (p === MAX_PAGES) hitCommitLimit = true;
       }
 
       // Filter out any malformed commits before processing
@@ -114,15 +122,16 @@ export function useGitHub() {
         throw new Error(msg);
       }
       const branches = (await brRes.json()) as GitHubBranch[];
+      const branchCandidates = branches.filter((b) => b.name !== defaultBranch);
+      const branchesToCompare = branchCandidates.slice(0, MAX_BRANCHES);
+      const hitBranchLimit = branchCandidates.length > MAX_BRANCHES;
 
       // 3. Map branches to commits (Feature branches take priority over main)
       // Using Compare API to get ONLY unique commits per branch
       const brMap: Record<string, string> = {};
 
       await Promise.allSettled(
-        branches
-          .filter((b) => b.name !== defaultBranch)
-          .slice(0, 15) // Limit to avoid hitting rate limits
+        branchesToCompare
           .map(async (b) => {
             try {
               // Compare API: gives commits in branch but NOT in default branch
@@ -185,7 +194,15 @@ export function useGitHub() {
         phases,
         types,
         contribs,
-        totalDays
+        totalDays,
+        analysis: {
+          commitsAnalyzed: enriched.length,
+          branchesCompared: branchesToCompare.length,
+          hitCommitLimit,
+          hitBranchLimit,
+          maxCommits: MAX_COMMITS,
+          maxBranches: MAX_BRANCHES
+        }
       });
       
       // Save repo to localStorage for convenience

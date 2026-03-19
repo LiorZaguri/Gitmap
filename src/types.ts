@@ -21,3 +21,12 @@ export interface Phase {
   status: PhaseStatus;
   idx: number;
 }
+
+export interface AnalysisMeta {
+  commitsAnalyzed: number;
+  branchesCompared: number;
+  hitCommitLimit: boolean;
+  hitBranchLimit: boolean;
+  maxCommits: number;
+  maxBranches: number;
+}
