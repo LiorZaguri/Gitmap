@@ -48,7 +48,22 @@ export const RoadMap: React.FC<RoadMapProps> = ({ phases, onPinClick, activePhas
     };
   }, [phases]);
 
-  if (!phases || phases.length === 0) return null;
+  if (!phases || phases.length === 0) {
+    return (
+      <div style={{
+        padding: '40px',
+        textAlign: 'center',
+        color: '#55555f',
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: '13px',
+        border: '1px dashed #242428',
+        borderRadius: '12px',
+        margin: '16px 0'
+      }}>
+        No phases detected yet
+      </div>
+    );
+  }
 
   const STEP = 160;
   const H = 420;

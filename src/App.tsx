@@ -54,6 +54,17 @@ function App() {
         <div style={{ marginTop: '20px' }}>
           <StatsRow commitCount={commits.length} phases={phases} totalDays={totalDays || 1} />
           
+          {/* DEBUG — remove after road works */}
+          <div style={{color:'lime',fontFamily:'monospace',padding:'8px',fontSize:'12px'}}>
+            Phases count: {phases.length} | Commits: {commits.length}
+          </div>
+
+          {phases.length === 0 && commits.length > 0 && (
+            <div style={{color:'red',fontFamily:'monospace',padding:'8px',fontSize:'11px'}}>
+              ERROR: commits loaded but buildPhases returned 0 — check phases.ts
+            </div>
+          )}
+
           <p style={{ fontSize: '12px', color: 'var(--text3)', textAlign: 'center', marginBottom: '16px', fontFamily: 'JetBrains Mono, monospace' }}>
             Click any pin to explore that phase ↓
           </p>
