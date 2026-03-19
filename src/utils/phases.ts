@@ -64,12 +64,12 @@ export function buildPhases(
 
   const now = new Date().getTime();
   // Final conversion to Phase[] with status and color
-  const trimmedGroups = groups.slice(-14);
-  const offset = Math.max(groups.length - trimmedGroups.length, 0);
+  const trimmedGroups = groups;
+  const offset = 0;
   const boundaryScoreByIndex = new Map(boundarySelection.scores.map(score => [score.index, score]));
 
   const phases = trimmedGroups.map((g, i) => {
-    const isLast = i === Math.min(groups.length, 14) - 1;
+    const isLast = i === groups.length - 1;
     const daysSince = (now - new Date(g.end).getTime()) / 86400000;
     
     let status: PhaseStatus = 'done';
