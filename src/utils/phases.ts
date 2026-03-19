@@ -1,4 +1,4 @@
-import type { Commit, Phase, PhaseStatus } from '../types';
+import type { Commit, Phase, PhaseStatus, WorkItem } from '../types';
 import type { PullRequestMeta } from './github';
 import { COLORS, STOP_WORDS, toTitleCase } from './classify';
 
@@ -32,43 +32,30 @@ const DOMAIN_MAP = [
 
 export function buildPhases(
   commits: Commit[],
-  options?: { boundaryHints?: number[]; pathDomains?: Record<string, string>; pullRequests?: Record<string, PullRequestMeta> }
+  options?: { boundaryHints?: number[]; pathDomains?: Record<string, string>; pullRequests?: Record<string, PullRequestMeta>; workItems?: WorkItem[] }
 ): {
   phases: Phase[];
   grouping: {
-    mode: 'branch' | 'time-gap';
-    label: 'branch' | 'time-gap' | 'mixed';
+    mode: 'work-items';
+    label: 'work-items';
     branchRatio: number;
   };
 } {
   console.log('Total commits received:', commits.length);
-  console.log('Branch distribution:', commits.reduce((acc, c) => {
-    acc[c.branch] = (acc[c.branch] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>));
 
-  // commits are already Commit objects — no conversion needed
   const raw = commits.filter(c => c && c.msg && c.date);
-
-  const branchCommits = raw.filter(c =>
-    c.branch && c.branch !== 'main' && c.branch !== 'master' && c.branch !== 'HEAD'
-  );
-  const branchRatio = branchCommits.length / Math.max(raw.length, 1);
-  console.log('Branch ratio:', branchRatio, '— using', branchRatio > 0.2 ? 'branch' : 'time-gap', 'grouping');
-
-  let groups: PhaseGroup[] = [];
-  const boundaryHints = options?.boundaryHints || [];
+  const workItems = options?.workItems ?? [];
   const pathDomains = options?.pathDomains || {};
   const pullRequests = options?.pullRequests || {};
   const context = { pathDomains, pullRequests };
+  const commitBySha = new Map(raw.map(commit => [commit.sha, commit]));
 
-  if (branchRatio > 0.2) {
-    groups = groupByBranch(raw, context);
+  let groups: PhaseGroup[] = [];
+  if (workItems.length > 0) {
+    groups = segmentWorkItems(workItems, commitBySha, context);
   } else if (raw.length > 0) {
     groups = [makeGroup(raw, context)];
   }
-
-  groups = refineGroupsBySemanticSignals(raw, groups, boundaryHints, pathDomains, pullRequests);
 
   const now = new Date().getTime();
   // Final conversion to Phase[] with status and color
@@ -88,16 +75,31 @@ export function buildPhases(
     };
   });
 
-  const label = branchRatio >= 0.25 ? 'branch' : (branchRatio <= 0.15 ? 'time-gap' : 'mixed');
-
   return {
     phases,
     grouping: {
-      mode: branchRatio > 0.2 ? 'branch' : 'time-gap',
-      label,
-      branchRatio
+      mode: 'work-items',
+      label: 'work-items',
+      branchRatio: 0
     }
   };
+}
+
+function segmentWorkItems(
+  workItems: WorkItem[],
+  commitBySha: Map<string, Commit>,
+  context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }
+) {
+  const groups: PhaseGroup[] = [];
+  workItems.forEach(item => {
+    if (!item.commitShas || item.commitShas.length === 0) return;
+    const commits = item.commitShas
+      .map(sha => commitBySha.get(sha))
+      .filter((c): c is Commit => Boolean(c));
+    if (commits.length === 0) return;
+    groups.push(makeGroup(commits, context));
+  });
+  return groups;
 }
 
 function groupByBranch(commits: Commit[], context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> }) {
