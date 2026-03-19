@@ -120,7 +120,7 @@ export function useGitHub() {
 
       // 6. Build phases from enriched commits
       setLoadingStage('Analyzing phases');
-      const { phases, grouping } = buildPhases(enriched, { boundaryHints, pathDomains, pullRequests, workItems });
+      const { phases, grouping, roadmapConfidence } = buildPhases(enriched, { boundaryHints, pathDomains, pullRequests, workItems });
 
 
       // 7. Calculate stats
@@ -160,6 +160,7 @@ export function useGitHub() {
           maxBranches: MAX_BRANCHES,
           partial,
           confidence,
+          roadmapConfidence,
           groupingMode: grouping.mode,
           groupingLabel: grouping.label,
           branchRatio: grouping.branchRatio

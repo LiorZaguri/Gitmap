@@ -4,12 +4,17 @@ import { COLORS, STOP_WORDS, toTitleCase } from './classify';
 import { scoreWorkItemBoundaries, selectBoundaries } from './boundaries';
 import { buildPhaseFingerprint } from './phaseFingerprint';
 import { buildPhaseName } from './phaseNaming';
+import { calculateRoadmapConfidence } from './roadmapConfidence';
+import type { RoadmapConfidence } from '../types';
 
 interface PhaseGroup {
   name: string;
   branch: string;
   items: Commit[];
   workItems?: WorkItem[];
+  workItemStart?: number;
+  workItemEnd?: number;
+  fingerprint?: import('../types').PhaseFingerprint;
   start: string;
   end: string;
 }
@@ -44,6 +49,7 @@ export function buildPhases(
     label: 'work-items';
     branchRatio: number;
   };
+  roadmapConfidence: RoadmapConfidence;
 } {
   console.log('Total commits received:', commits.length);
 
@@ -55,15 +61,34 @@ export function buildPhases(
   const commitBySha = new Map(raw.map(commit => [commit.sha, commit]));
 
   let groups: PhaseGroup[] = [];
+  let boundarySelection = { boundaries: [] as number[], scores: [] as ReturnType<typeof scoreWorkItemBoundaries>, reasons: {} as Record<number, string> };
   if (workItems.length > 0) {
-    groups = segmentWorkItems(workItems, commitBySha, context);
+    const result = segmentWorkItems(workItems, commitBySha, context);
+    groups = result.groups;
+    boundarySelection = result.selection;
   } else if (raw.length > 0) {
     groups = [makeGroup(raw, context)];
   }
 
+  const phaseInputs = groups.map(group => {
+    const fingerprint = buildPhaseFingerprint(group.workItems ?? [], group.items);
+    group.fingerprint = fingerprint;
+    return {
+      workItems: group.workItems ?? [],
+      commits: group.items,
+      fingerprint,
+      workItemStart: group.workItemStart ?? 0,
+      workItemEnd: group.workItemEnd ?? 0
+    };
+  });
+
+  const confidenceResult = calculateRoadmapConfidence(phaseInputs, workItems, boundarySelection);
+
   const now = new Date().getTime();
   // Final conversion to Phase[] with status and color
-  const phases = groups.slice(-14).map((g, i) => {
+  const trimmedGroups = groups.slice(-14);
+  const offset = Math.max(groups.length - trimmedGroups.length, 0);
+  const phases = trimmedGroups.map((g, i) => {
     const isLast = i === Math.min(groups.length, 14) - 1;
     const daysSince = (now - new Date(g.end).getTime()) / 86400000;
     
@@ -71,14 +96,16 @@ export function buildPhases(
     if (isLast && daysSince < 14) status = 'active';
     else if (daysSince > 90) status = 'abandoned';
 
-    const fingerprint = buildPhaseFingerprint(g.workItems ?? [], g.items);
+    const fingerprint = g.fingerprint ?? buildPhaseFingerprint(g.workItems ?? [], g.items);
     const naming = buildPhaseName(fingerprint, g.items);
+    const roadmapConfidence = confidenceResult.perPhase[i + offset];
 
     return {
       ...g,
       name: naming.name,
       nameSource: naming.source,
       fingerprint,
+      roadmapConfidence,
       status,
       color: COLORS[i % COLORS.length],
       idx: i
@@ -91,7 +118,8 @@ export function buildPhases(
       mode: 'work-items',
       label: 'work-items',
       branchRatio: 0
-    }
+    },
+    roadmapConfidence: confidenceResult.overall
   };
 }
 
@@ -116,17 +144,17 @@ function segmentWorkItems(
     const slice = workItems.slice(start, boundary);
     if (slice.length > 0) {
       const commits = collectCommits(slice, commitBySha);
-      if (commits.length > 0) groups.push(makeGroup(commits, context, slice));
+      if (commits.length > 0) groups.push(makeGroup(commits, context, slice, start, boundary));
     }
     start = boundary;
   });
   const tail = workItems.slice(start);
   if (tail.length > 0) {
     const commits = collectCommits(tail, commitBySha);
-    if (commits.length > 0) groups.push(makeGroup(commits, context, tail));
+    if (commits.length > 0) groups.push(makeGroup(commits, context, tail, start, workItems.length));
   }
 
-  return groups;
+  return { groups, selection };
 }
 
 function collectCommits(workItems: WorkItem[], commitBySha: Map<string, Commit>) {
@@ -555,7 +583,9 @@ function mergeAdjacentSameName(
 function makeGroup(
   commits: Commit[],
   context: { pathDomains: Record<string, string>; pullRequests: Record<string, PullRequestMeta> },
-  workItems?: WorkItem[]
+  workItems?: WorkItem[],
+  workItemStart?: number,
+  workItemEnd?: number
 ): PhaseGroup {
   const start = commits[0].date;
   const end = commits[commits.length - 1].date;
@@ -565,7 +595,9 @@ function makeGroup(
     start,
     end,
     branch: commits[0].branch || 'main',
-    workItems
+    workItems,
+    workItemStart,
+    workItemEnd
   };
 }
 

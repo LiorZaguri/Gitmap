@@ -42,9 +42,19 @@ export interface Phase {
   idx: number;
   fingerprint?: PhaseFingerprint;
   nameSource?: PhaseNameSource;
+  roadmapConfidence?: RoadmapConfidence;
 }
 
 export type PhaseNameSource = 'workstream' | 'domain' | 'label-scope' | 'topic' | 'fallback';
+
+export interface RoadmapConfidence {
+  score: number;
+  prCoverage: number;
+  pathCoherence: number;
+  boundaryStrength: number;
+  namingClarity: number;
+  releaseStructure: number;
+}
 
 export interface PhaseFingerprint {
   dominantDomains: Array<{ value: string; count: number; ratio: number }>;
@@ -68,7 +78,8 @@ export interface AnalysisMeta {
   maxBranches: number;
   partial: boolean;
   confidence: 'high' | 'medium' | 'low';
-  groupingMode: 'branch' | 'time-gap';
-  groupingLabel: 'branch' | 'time-gap' | 'mixed';
+  roadmapConfidence?: RoadmapConfidence;
+  groupingMode: 'branch' | 'time-gap' | 'work-items';
+  groupingLabel: 'branch' | 'time-gap' | 'mixed' | 'work-items';
   branchRatio: number;
 }
