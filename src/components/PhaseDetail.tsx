@@ -47,7 +47,7 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
     : (analysis?.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals');
 
   return (
-    <div className="phase-popup" style={{ borderColor: `${phase.color}33`, marginTop: '16px' }}>
+    <div className="phase-detail">
       <div className="popup-header">
         <div className="popup-dot" style={{ background: phase.color }}></div>
         <span className="popup-name">{phase.name}</span>
@@ -115,8 +115,6 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
       </div>
 
       <style>{`
-        .phase-popup { background: var(--bg2); border: 1px solid var(--border3); border-radius: 14px; overflow: hidden; animation: slideIn .2s ease; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(-8px) } to { opacity: 1; transform: translateY(0) } }
         .popup-header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border) }
         .popup-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0 }
         .popup-name { font-size: 15px; font-weight: 600; flex: 1 }
@@ -143,7 +141,7 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         .s-done { background: rgba(145,145,164,0.1); color: var(--text2) }
         .s-abandoned { background: rgba(255,85,85,0.1); color: var(--red) }
         .sub-road { padding: 16px 18px }
-        .sub-road-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); margin-bottom: 12px }
+        .sub-road-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #55555f; margin-bottom: 12px }
         .sub-road-wrap { position: relative; padding-left: 20px }
         .sub-road-line { position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, var(--green), var(--blue), var(--purple)); border-radius: 1px; opacity: 0.4 }
         .sub-item { position: relative; display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px }

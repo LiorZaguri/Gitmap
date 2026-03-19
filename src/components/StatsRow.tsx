@@ -15,14 +15,8 @@ const Stat: React.FC<{ label: string; value: string | number; colorClass?: strin
     padding: '14px',
     textAlign: 'center'
   }}>
-    <div className={colorClass} style={{
-      fontSize: '24px',
-      fontWeight: 700,
-      letterSpacing: '-.5px',
-      lineHeight: 1,
-      marginBottom: '3px'
-    }}>{value}</div>
-    <div style={{ fontSize: '11px', color: 'var(--text2)' }}>{label}</div>
+    <div className={`stat-n ${colorClass || ''}`}>{value}</div>
+    <div className="stat-l">{label}</div>
   </div>
 );
 

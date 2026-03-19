@@ -6,8 +6,8 @@ import { StatsRow } from './components/StatsRow';
 import { RoadMap } from './components/RoadMap';
 import { PhaseDetail } from './components/PhaseDetail';
 import { InsightsRow } from './components/InsightsRow';
-import { ContributorHeatmap } from './components/ContributorHeatmap';
 import { HealthScore } from './components/HealthScore';
+import { HistoryQuality } from './components/HistoryQuality';
 import { useGitHub } from './hooks/useGitHub';
 
 function App() {
@@ -26,7 +26,7 @@ function App() {
 
   return (
     <div className="page">
-      <header style={{ textAlign: 'center', marginBottom: '36px' }}>
+      <header className="hero-header">
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '18px', opacity: 0.6 }}>
           <div style={{ width: '26px', height: '26px', background: 'var(--green)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="#000"><path d="M7 1L9 5H13L9.5 8L11 12L7 9.5L3 12L4.5 8L1 5H5Z"/></svg>
@@ -36,10 +36,12 @@ function App() {
         <h1 style={{ fontSize: '34px', fontWeight: 700, letterSpacing: '-1px', marginBottom: '8px', background: 'linear-gradient(135deg, #fff 30%, #555)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
           Your commits,<br />turned into a roadmap.
         </h1>
-        <p style={{ fontSize: '14px', color: 'var(--text2)' }}>Reverse-engineer your project history into phases, timelines, and insights.</p>
+        <p style={{ fontSize: '13px', color: 'var(--text2)' }}>Reverse-engineer your project history into phases, timelines, and insights.</p>
       </header>
 
-      <InputPanel onGenerate={generate} loading={loading} error={error} />
+      <div className="input-panel-wrap">
+        <InputPanel onGenerate={generate} loading={loading} error={error} />
+      </div>
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '50px 0' }}>
@@ -53,39 +55,32 @@ function App() {
       {commits && phases && analysis && (
         <div style={{ marginTop: '20px' }}>
           <StatsRow commitCount={commits.length} phases={phases} totalDays={totalDays || 1} />
-          {(analysis.hitCommitLimit || analysis.hitBranchLimit) && (
-            <div style={{ margin: '10px 0 20px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
-              Partial analysis:
-              {analysis.hitCommitLimit && ` Analyzed latest ${analysis.maxCommits} commits.`}
-              {analysis.hitBranchLimit && ` Compared up to ${analysis.maxBranches} branches.`}
-            </div>
-          )}
-          <div style={{ margin: '0 0 20px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
-            Coverage: {analysis.commitsAnalyzed} commits analyzed, {analysis.branchesCompared} branches compared. Confidence: {analysis.confidence}.
+          <div className="analysis-line">
+            {phases.length} phases · {commits.length} commits · analysed{analysis.partial ? ' (partial)' : ''}
           </div>
-          <div style={{ margin: '0 0 16px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
-            Grouping: {analysis.groupingLabel === 'branch' ? 'Branch patterns' : (analysis.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals')}. Using {analysis.groupingMode === 'branch' ? 'branch' : 'time-gap'} grouping (non-main commits {Math.round(analysis.branchRatio * 100)}%).
+          <div className="road-section">
+            <RoadMap 
+              phases={phases} 
+              onPinClick={handlePinClick} 
+              activePhaseIdx={selectedPhaseIdx}
+            />
           </div>
-          <RoadMap 
-            phases={phases} 
-            onPinClick={handlePinClick} 
-            activePhaseIdx={selectedPhaseIdx}
-          />
           
-          <PhaseDetail
-            phase={selectedPhase}
-            repo={repo}
-            analysis={analysis}
-            onClose={() => setSelectedPhaseIdx(null)}
-          />
+          {selectedPhase && (
+            <PhaseDetail
+              phase={selectedPhase}
+              repo={repo}
+              analysis={analysis}
+              onClose={() => setSelectedPhaseIdx(null)}
+            />
+          )}
 
           <div className="health-grid">
             <HealthScore commits={commits} phases={phases} />
+            <HistoryQuality commits={commits} phases={phases} types={types || {} as Record<CommitType, number>} contribs={contribs || []} />
           </div>
 
           <InsightsRow types={types || {} as Record<CommitType, number>} contribs={contribs || []} commits={commits} />
-          
-          <ContributorHeatmap commits={commits} />
         </div>
       )}
     </div>

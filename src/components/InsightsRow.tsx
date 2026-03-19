@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Commit, CommitType } from '../types';
 import { TYPE_COLORS } from '../utils/classify';
+import { ContributorHeatmap } from './ContributorHeatmap';
 
 interface InsightsRowProps {
   types: Record<CommitType, number>;
@@ -18,7 +19,7 @@ export const InsightsRow: React.FC<InsightsRowProps> = ({ types, contribs, commi
   return (
     <div className="insights-grid">
       <div className="ins-card">
-        <div className="ins-title">Commit breakdown</div>
+        <div className="card-title">Commit breakdown</div>
         {Object.entries(types)
           .sort((a, b) => b[1] - a[1])
           .map(([type, count]) => (
@@ -45,7 +46,7 @@ export const InsightsRow: React.FC<InsightsRowProps> = ({ types, contribs, commi
       </div>
 
       <div className="ins-card">
-        <div className="ins-title">Contributors</div>
+        <div className="card-title">Contributors</div>
         {contribs.slice(0, 8).map(c => {
           const initials = c.split(' ').map(w => w[0] || '').join('').toUpperCase().slice(0, 2) || '?';
           const count = commits.filter(x => x.author === c).length;
@@ -59,9 +60,9 @@ export const InsightsRow: React.FC<InsightsRowProps> = ({ types, contribs, commi
         })}
       </div>
 
+      <ContributorHeatmap commits={commits} />
+
       <style>{`
-        .ins-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; }
-        .ins-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); margin-bottom: 12px; }
         .type-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
         .type-bar { flex: 1; height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; }
         .type-fill { height: 100%; border-radius: 2px; }

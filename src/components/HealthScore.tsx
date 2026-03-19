@@ -20,7 +20,7 @@ export const HealthScore: React.FC<HealthScoreProps> = ({ commits, phases }) => 
 
   return (
     <div className="ins-card" style={{ marginTop: '12px' }}>
-      <div className="ins-title">Project Health Score</div>
+      <div className="card-title">Project Health Score</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
         <div style={{ position: 'relative', width: '80px', height: '80px' }}>
           <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
@@ -38,16 +38,16 @@ export const HealthScore: React.FC<HealthScoreProps> = ({ commits, phases }) => 
           </div>
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '4px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '4px' }}>
             Activity: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{health.activity}%</span> · {health.velocity} commits/wk
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '4px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '4px' }}>
             Stability: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{health.stability}%</span> · {health.stablePhases}/{health.totalPhases} phases healthy
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '4px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '4px' }}>
             Freshness: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{health.freshness}%</span> · last commit {health.daysSinceLast}d ago
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--text2)' }}>
+          <div style={{ fontSize: '13px', color: 'var(--text2)' }}>
             Collaboration: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{health.collaboration}%</span> · {health.contributors} contributors
           </div>
         </div>

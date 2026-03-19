@@ -55,7 +55,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.08em' }}>
-            GitHub Token (optional)
+            GITHUB TOKEN <span style={{ color: '#55555f', fontWeight: 400 }}>(optional for public repos)</span>
           </label>
           <input
             type="password"

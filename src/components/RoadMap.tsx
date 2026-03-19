@@ -140,9 +140,9 @@ export const RoadMap: React.FC<RoadMapProps> = ({ phases, onPinClick, activePhas
                 {/* Center dot */}
                 <circle cx={x} cy={y - 24} r={7} fill={isAbandoned ? col : 'rgba(255,255,255,0.9)'}/>
                 {/* Number */}
-                <text x={x} y={y - 20} textAnchor="middle" fontSize="11" fontWeight="700" fill={isAbandoned ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.7)'} fontFamily="Inter,sans-serif">{i + 1}</text>
+                <text x={x} y={y - 20} textAnchor="middle" fontSize="11" fontWeight="700" fill={isAbandoned ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.7)'} fontFamily="Sora,sans-serif">{i + 1}</text>
                 {/* Phase name label */}
-                <text x={x} y={ly} textAnchor="middle" fontSize="13" fontWeight="600" fill={isAbandoned ? '#55555f' : col} fontFamily="Inter,sans-serif">{nameShort}</text>
+                <text x={x} y={ly} textAnchor="middle" fontSize="13" fontWeight="600" fill={isAbandoned ? '#55555f' : col} fontFamily="Sora,sans-serif">{nameShort}</text>
                 {/* Commit count */}
                 <text x={x} y={ly + (above ? -15 : 16)} textAnchor="middle" fontSize="11" fill="#55555f" fontFamily="JetBrains Mono,monospace">{p.items.length} commits</text>
               </g>

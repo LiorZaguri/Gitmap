@@ -24,8 +24,8 @@ export const ContributorHeatmap: React.FC<ContributorHeatmapProps> = ({ commits 
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div className="ins-card" style={{ marginTop: '12px', gridColumn: '1 / -1' }}>
-      <div className="ins-title">Contributor Activity (Day/Hour)</div>
+    <div className="ins-card">
+      <div className="card-title">Contributor Activity (Day/Hour)</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
         {data.map((row, dIdx) => (
           <div key={dIdx} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
