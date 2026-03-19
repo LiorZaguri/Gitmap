@@ -1,7 +1,7 @@
 import type { Commit, WorkItem, WorkItemKind } from '../types';
 import type { PullRequestMeta } from './github';
-import { STOP_WORDS } from './classify';
 import { extractPathDomainSummary } from './pathDomains';
+import { extractTopicWeights, mergeTopicWeights, toTopicTokenList } from './topics';
 
 interface WorkItemDraft {
   kind: WorkItemKind;
@@ -11,7 +11,7 @@ interface WorkItemDraft {
   pathDomains: Set<string>;
   typesScopes: Set<string>;
   contributors: Set<string>;
-  topicTokens: Set<string>;
+  topicWeights: Map<string, number>;
 }
 
 const DEFAULT_WINDOW = 4;
@@ -91,11 +91,14 @@ function createDraft(
     pathDomains: new Set<string>(),
     typesScopes: new Set<string>(),
     contributors: new Set<string>(),
-    topicTokens: new Set<string>()
+    topicWeights: new Map<string, number>()
   };
   appendCommit(draft, commit, commitDomains);
   if (pr?.files && pr.files.length > 0) {
     addDomainsFromFiles(draft, pr.files);
+  }
+  if (pr?.title) {
+    mergeTopicWeights(draft.topicWeights, extractTopicWeights(pr.title, 3));
   }
   return draft;
 }
@@ -106,7 +109,7 @@ function appendCommit(draft: WorkItemDraft, commit: Commit, commitDomains: Recor
   const domain = commitDomains[commit.sha];
   if (domain) draft.pathDomains.add(domain);
   extractTypesScopes(commit).forEach(ts => draft.typesScopes.add(ts));
-  extractTokens(commit.msg).forEach(token => draft.topicTokens.add(token));
+  mergeTopicWeights(draft.topicWeights, extractTopicWeights(commit.msg, 1));
 }
 
 function extractTypesScopes(commit: Commit) {
@@ -116,13 +119,6 @@ function extractTypesScopes(commit: Commit) {
   const scope = scopeMatch?.[1]?.trim();
   if (scope) types.push(`${commit.type}(${scope})`);
   return types;
-}
-
-function extractTokens(msg: string) {
-  return msg
-    .toLowerCase()
-    .split(/[\s():/.-]+/)
-    .filter(token => token.length > 2 && !STOP_WORDS.has(token));
 }
 
 function addDomainsFromFiles(draft: WorkItemDraft, files: string[]) {
@@ -137,11 +133,12 @@ function isSimilarCommit(
 ) {
   const domain = commitDomains[commit.sha];
   if (domain && current.pathDomains.has(domain)) return true;
-  const tokens = new Set(extractTokens(commit.msg));
-  if (tokens.size === 0 || current.topicTokens.size === 0) return false;
+  const weights = extractTopicWeights(commit.msg, 1);
+  const tokens = new Set(weights.keys());
+  if (tokens.size === 0 || current.topicWeights.size === 0) return false;
   let overlap = 0;
   tokens.forEach(token => {
-    if (current.topicTokens.has(token)) overlap += 1;
+    if (current.topicWeights.has(token)) overlap += 1;
   });
   const ratio = overlap / tokens.size;
   return overlap >= MIN_TOKEN_OVERLAP && ratio >= MIN_TOKEN_RATIO;
@@ -158,6 +155,7 @@ function toWorkItem(item: WorkItemDraft): WorkItem {
   const pathDomains = Array.from(item.pathDomains);
   const typesScopes = Array.from(item.typesScopes);
   const changedFiles = item.pullRequest?.files ?? [];
+  const topicTokens = toTopicTokenList(item.topicWeights);
   const releaseFlags: string[] = [];
 
   return {
@@ -169,6 +167,7 @@ function toWorkItem(item: WorkItemDraft): WorkItem {
     pathDomains,
     labels: [],
     typesScopes,
+    topicTokens,
     contributors,
     startDate,
     endDate,

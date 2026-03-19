@@ -20,6 +20,7 @@ export interface WorkItem {
   pathDomains: string[];
   labels: string[];
   typesScopes: string[];
+  topicTokens: Array<{ token: string; weight: number }>;
   contributors: string[];
   startDate: string;
   endDate: string;
