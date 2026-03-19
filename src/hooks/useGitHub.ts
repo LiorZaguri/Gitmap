@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import type { Commit, Phase, CommitType, AnalysisMeta } from '../types';
 import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
-import { fetchGitHubSnapshot, fetchMergeCommitHints } from '../utils/github';
+import { fetchGitHubSnapshot, fetchMergeCommitHints, fetchCommitPathDomains } from '../utils/github';
 import { computeConfidence } from '../utils/analysisMeta';
 
 const COMMITS_PER_PAGE = 100;
@@ -75,8 +75,16 @@ export function useGitHub() {
       const totalDays = Math.max(Math.round(Math.abs(lastDate - firstDate) / 86400000), 1);
 
       let boundaryHints: number[] = [];
+      let pathDomains: Record<string, string> = {};
       if (enriched.length >= 200 && totalDays >= 60) {
         boundaryHints = await fetchMergeCommitHints(
+          repo,
+          headers,
+          enriched.map(c => ({ sha: c.sha, msg: c.msg }))
+        );
+      }
+      if (enriched.length >= 150 || totalDays >= 90) {
+        pathDomains = await fetchCommitPathDomains(
           repo,
           headers,
           enriched.map(c => ({ sha: c.sha, msg: c.msg }))
@@ -85,7 +93,7 @@ export function useGitHub() {
 
       // 5. Build phases from enriched commits
       setLoadingStage('Analyzing phases');
-      const { phases, grouping } = buildPhases(enriched, { boundaryHints });
+      const { phases, grouping } = buildPhases(enriched, { boundaryHints, pathDomains });
 
 
       // 6. Calculate stats

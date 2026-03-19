@@ -31,7 +31,7 @@ const DOMAIN_MAP = [
 
 export function buildPhases(
   commits: Commit[],
-  options?: { boundaryHints?: number[] }
+  options?: { boundaryHints?: number[]; pathDomains?: Record<string, string> }
 ): {
   phases: Phase[];
   grouping: {
@@ -62,7 +62,10 @@ export function buildPhases(
     groups = groupByTimeGaps(raw);
   }
 
-  groups = applyFallbackGrouping(raw, groups, options?.boundaryHints || []);
+  const boundaryHints = options?.boundaryHints || [];
+  const pathDomains = options?.pathDomains || {};
+  groups = refineGroupsBySemanticSignals(raw, groups, boundaryHints, pathDomains);
+  groups = applyFallbackGrouping(raw, groups, boundaryHints, pathDomains);
 
   const now = new Date().getTime();
   // Final conversion to Phase[] with status and color
@@ -157,7 +160,7 @@ function nameFromBranch(branch: string, commits: Commit[]): string {
   return toTitleCase(baseName);
 }
 
-function topicFromCommit(commit: Commit) {
+function topicFromCommit(commit: Commit, pathDomains: Record<string, string>) {
   if (commit.branch && !['main', 'master', 'HEAD'].includes(commit.branch)) {
     const baseName = commit.branch
       .replace(/^(feat|fix|feature|hotfix|chore|release|dev)\//i, '')
@@ -172,6 +175,9 @@ function topicFromCommit(commit: Commit) {
   const scopeMatch = commit.msg.match(/\w+\(([^)]+)\):/);
   const scope = scopeMatch?.[1]?.trim();
   if (scope && scope.length >= 3) return toTitleCase(scope);
+
+  const pathDomain = pathDomains[commit.sha];
+  if (pathDomain) return toTitleCase(pathDomain);
 
   const domain = DOMAIN_MAP.find(d => d.re.test(msg));
   if (domain) return domain.name;
@@ -217,7 +223,87 @@ function groupByTimeGaps(commits: Commit[]) {
   return groups;
 }
 
-function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[], boundaryHints: number[]) {
+function refineGroupsBySemanticSignals(
+  commits: Commit[],
+  groups: PhaseGroup[],
+  boundaryHints: number[],
+  pathDomains: Record<string, string>
+) {
+  if (groups.length === 0) return groups;
+  const hintSet = new Set(boundaryHints);
+  const indexBySha = new Map(commits.map((c, idx) => [c.sha, idx]));
+
+  const refined: PhaseGroup[] = [];
+  groups.forEach(group => {
+    if (group.items.length < 30) {
+      refined.push(group);
+      return;
+    }
+
+    const slice = group.items;
+    const topics = slice.map(c => topicFromCommit(c, pathDomains));
+    const gaps: number[] = [];
+    for (let i = 1; i < slice.length; i++) {
+      const gap = Math.abs(new Date(slice[i].date).getTime() - new Date(slice[i - 1].date).getTime()) / 86400000;
+      gaps.push(gap);
+    }
+    const gapThreshold = Math.max(5, percentile(gaps, 0.9));
+    const minSize = 10;
+    const window = 8;
+    const minHits = 3;
+
+    let start = 0;
+    let currentTopic = topics[0] || null;
+
+    for (let i = 1; i < slice.length; i++) {
+      const gap = Math.abs(new Date(slice[i].date).getTime() - new Date(slice[i - 1].date).getTime()) / 86400000;
+      const release = /release|version|changelog|tag/i.test(slice[i].msg);
+      const merge = /^merge\b/i.test(slice[i].msg);
+      const idx = indexBySha.get(slice[i].sha);
+
+      if ((release || merge || (idx !== undefined && hintSet.has(idx)) || gap >= gapThreshold) && (i - start) >= minSize) {
+        const seg = slice.slice(start, i);
+        if (seg.length) refined.push(makeGroup(seg));
+        start = i;
+        currentTopic = topics[i] || currentTopic;
+        continue;
+      }
+
+      const t = topics[i];
+      if (t && t !== currentTopic && (i - start) >= minSize) {
+        let hits = 0;
+        for (let j = i; j < Math.min(slice.length, i + window); j++) {
+          if (topics[j] === t) hits += 1;
+        }
+        if (hits >= minHits) {
+          const seg = slice.slice(start, i);
+          if (seg.length) refined.push(makeGroup(seg));
+          start = i;
+          currentTopic = t;
+        }
+      }
+    }
+
+    const tail = slice.slice(start);
+    if (tail.length) refined.push(makeGroup(tail));
+  });
+
+  return mergeAdjacentSameName(mergeSmallGroups(refined, 8));
+}
+
+function percentile(values: number[], p: number) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.floor((sorted.length - 1) * p);
+  return sorted[idx];
+}
+
+function applyFallbackGrouping(
+  commits: Commit[],
+  groups: PhaseGroup[],
+  boundaryHints: number[],
+  pathDomains: Record<string, string>
+) {
   const first = new Date(commits[0].date).getTime();
   const last = new Date(commits[commits.length - 1].date).getTime();
   const totalDays = Math.max(Math.round(Math.abs(last - first) / 86400000), 1);
@@ -225,7 +311,7 @@ function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[], boundary
   const substantial = commits.length >= 150 || totalDays >= 90;
   if (!substantial) return groups;
 
-  const topicGroups = buildTopicGroups(commits, boundaryHints);
+  const topicGroups = buildTopicGroups(commits, boundaryHints, pathDomains);
   if (topicGroups.length > groups.length) {
     return topicGroups;
   }
@@ -248,8 +334,12 @@ function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[], boundary
   return fallback.length >= groups.length ? fallback : groups;
 }
 
-function buildTopicGroups(commits: Commit[], boundaryHints: number[]) {
-  const topics = commits.map(topicFromCommit);
+function buildTopicGroups(
+  commits: Commit[],
+  boundaryHints: number[],
+  pathDomains: Record<string, string>
+) {
+  const topics = commits.map(c => topicFromCommit(c, pathDomains));
   const hintSet = new Set(boundaryHints);
   const groups: PhaseGroup[] = [];
   const window = 8;

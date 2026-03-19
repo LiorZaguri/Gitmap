@@ -101,6 +101,56 @@ export async function fetchMergeCommitHints(
   return hints;
 }
 
+export async function fetchCommitPathDomains(
+  repo: string,
+  headers: Record<string, string>,
+  commits: Array<{ sha: string; msg: string }>,
+  options?: { maxCommits?: number; minFiles?: number; dominance?: number }
+) {
+  const maxCommits = options?.maxCommits ?? 40;
+  const minFiles = options?.minFiles ?? 5;
+  const dominance = options?.dominance ?? 0.6;
+
+  const mergeCandidates = commits.filter(c => /^merge\b/i.test(c.msg)).map(c => c.sha);
+  const spaced: string[] = [];
+  if (commits.length > 0) {
+    const step = Math.max(1, Math.floor(commits.length / maxCommits));
+    for (let i = 0; i < commits.length && spaced.length < maxCommits; i += step) {
+      spaced.push(commits[i].sha);
+    }
+  }
+
+  const unique = [...new Set([...mergeCandidates, ...spaced])].slice(0, maxCommits);
+  const domainMap: Record<string, string> = {};
+
+  for (const sha of unique) {
+    const r = await fetch(`https://api.github.com/repos/${repo}/commits/${sha}`, { headers });
+    if (!r.ok) {
+      const remaining = r.headers.get('x-ratelimit-remaining');
+      if (r.status === 403 && remaining === '0') break;
+      continue;
+    }
+    const data = (await r.json()) as GitHubCommitDetail;
+    const files = data.files || [];
+    if (files.length < minFiles) continue;
+
+    const counts: Record<string, number> = {};
+    files.forEach(f => {
+      const top = f.filename.split('/')[0] || '(root)';
+      counts[top] = (counts[top] || 0) + 1;
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (!top) continue;
+    const count = top[1];
+    if (count / files.length >= dominance) {
+      const name = top[0].replace(/[-_]/g, ' ').trim();
+      if (name && name !== '(root)') domainMap[sha] = name.replace(/\b\w/g, c => c.toUpperCase());
+    }
+  }
+
+  return domainMap;
+}
+
 export async function fetchGitHubSnapshot(
   repo: string,
   headers: Record<string, string>,
