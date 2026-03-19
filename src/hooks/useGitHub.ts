@@ -1,43 +1,49 @@
 import { useState, useCallback } from 'react';
-import type { Commit, Phase, CommitType } from '../types';
+import type { Commit, Phase, CommitType, AnalysisMeta } from '../types';
 import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
+import { fetchGitHubSnapshot } from '../utils/github';
+import { computeConfidence } from '../utils/analysisMeta';
+
+const COMMITS_PER_PAGE = 100;
+const MAX_PAGES = 5;
+const MAX_BRANCHES = 15;
+const MAX_COMMITS = COMMITS_PER_PAGE * MAX_PAGES;
 
 export function useGitHub() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingStage, setLoadingStage] = useState<string | null>(null);
   const [data, setData] = useState<{
+    repo: string;
     commits: Commit[];
     phases: Phase[];
     types: Record<CommitType, number>;
     contribs: string[];
     totalDays: number;
+    analysis: AnalysisMeta;
   } | null>(null);
 
   const generate = useCallback(async (repo: string, token: string) => {
     setLoading(true);
     setError(null);
-    const h = {
-      'Authorization': `token ${token}`,
+    const tokenValue = token.trim();
+    const hasToken = tokenValue.length > 0;
+    const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json'
     };
+    if (hasToken) headers.Authorization = `token ${tokenValue}`;
 
     try {
-      // 1. Fetch commits (up to 5 pages)
-      const pages: any[] = [];
-      for (let p = 1; p <= 5; p++) {
-        const r = await fetch(`https://api.github.com/repos/${repo}/commits?per_page=100&page=${p}`, { headers: h });
-        if (!r.ok) {
-          const e = await r.json();
-          throw new Error(e.message || `GitHub error ${r.status}`);
-        }
-        const d = await r.json();
-        pages.push(...d);
-        if (d.length < 100) break;
-      }
+      const snapshot = await fetchGitHubSnapshot(repo, headers, hasToken, {
+        commitsPerPage: COMMITS_PER_PAGE,
+        maxPages: MAX_PAGES,
+        maxBranches: MAX_BRANCHES
+      }, setLoadingStage);
+      const { commits: pages, defaultBranch, branchMap, hitCommitLimit, hitBranchLimit, branchesCompared } = snapshot;
 
       // Filter out any malformed commits before processing
-      const validCommits = pages.filter(c => 
+      const validCommits = pages.filter(c =>
         c && 
         c.sha && 
         c.commit && 
@@ -47,41 +53,9 @@ export function useGitHub() {
         c.commit.author.name
       );
       validCommits.reverse();
-
-      // 2. Fetch repo and branches
-      const repoRes = await fetch(`https://api.github.com/repos/${repo}`, { headers: h });
-      const repoData = repoRes.ok ? await repoRes.json() : {};
-      const defaultBranch = repoData.default_branch || 'main';
-
-      const brRes = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, { headers: h });
-      const branches = brRes.ok ? await brRes.json() : [];
-
-      // 3. Map branches to commits (Feature branches take priority over main)
-      // Using Compare API to get ONLY unique commits per branch
-      const brMap: Record<string, string> = {};
-
-      await Promise.allSettled(
-        branches
-          .filter((b: any) => b.name !== defaultBranch)
-          .slice(0, 15) // Limit to avoid hitting rate limits
-          .map(async (b: any) => {
-            try {
-              // Compare API: gives commits in branch but NOT in default branch
-              const r = await fetch(
-                `https://api.github.com/repos/${repo}/compare/${defaultBranch}...${b.name}`,
-                { headers: h }
-              );
-              if (!r.ok) return;
-              const data = await r.json();
-              // data.commits = commits unique to this branch
-              (data.commits || []).forEach((c: any) => {
-                brMap[c.sha] = b.name;
-              });
-            } catch (e) {
-              console.warn(`Failed to compare branch ${b.name}:`, e);
-            }
-          })
-      );
+      if (validCommits.length === 0) {
+        throw new Error('Repo has no commits to analyze.');
+      }
 
       // 4. Enrich commits with branch info and classify
       const enriched: Commit[] = validCommits.map(c => ({
@@ -89,7 +63,7 @@ export function useGitHub() {
         msg: c.commit.message.split('\n')[0],
         date: c.commit.author.date,
         author: c.commit.author.name,
-        branch: brMap[c.sha] || defaultBranch,
+        branch: branchMap[c.sha] || defaultBranch,
         type: cls(c.commit.message.split('\n')[0])
       }));
 
@@ -97,11 +71,22 @@ export function useGitHub() {
       enriched.reverse();
 
       // 5. Build phases from enriched commits
-      const phases = buildPhases(enriched);
+      setLoadingStage('Analyzing phases');
+      const { phases, grouping } = buildPhases(enriched);
 
 
       // 6. Calculate stats
-      const types: Record<CommitType, number> = {} as any;
+      setLoadingStage('Building insights');
+      const types: Record<CommitType, number> = {
+        feat: 0,
+        fix: 0,
+        refactor: 0,
+        docs: 0,
+        test: 0,
+        ci: 0,
+        chore: 0,
+        unknown: 0
+      };
       enriched.forEach(c => {
         types[c.type] = (types[c.type] || 0) + 1;
       });
@@ -112,24 +97,41 @@ export function useGitHub() {
       const lastDate = new Date(enriched[enriched.length - 1].date).getTime();
       const totalDays = Math.max(Math.round(Math.abs(lastDate - firstDate) / 86400000), 1);
 
+      const { partial, confidence } = computeConfidence(hitCommitLimit, hitBranchLimit);
+
       setData({
+        repo,
         commits: enriched,
         phases,
         types,
         contribs,
-        totalDays
+        totalDays,
+        analysis: {
+          commitsAnalyzed: enriched.length,
+          branchesCompared,
+          hitCommitLimit,
+          hitBranchLimit,
+          maxCommits: MAX_COMMITS,
+          maxBranches: MAX_BRANCHES,
+          partial,
+          confidence,
+          groupingMode: grouping.mode,
+          groupingLabel: grouping.label,
+          branchRatio: grouping.branchRatio
+        }
       });
       
-      // Save to localStorage as requested
+      // Save repo to localStorage for convenience
       localStorage.setItem('gitmap_repo', repo);
-      localStorage.setItem('gitmap_token', token);
 
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
+      setLoadingStage(null);
     }
   }, []);
 
-  return { ...data, loading, error, generate };
+  return { ...data, loading, loadingStage, error, generate };
 }

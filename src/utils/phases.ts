@@ -1,7 +1,22 @@
 import type { Commit, Phase, PhaseStatus } from '../types';
 import { COLORS, STOP_WORDS, toTitleCase } from './classify';
 
-export function buildPhases(commits: Commit[]): Phase[] {
+interface PhaseGroup {
+  name: string;
+  branch: string;
+  items: Commit[];
+  start: string;
+  end: string;
+}
+
+export function buildPhases(commits: Commit[]): {
+  phases: Phase[];
+  grouping: {
+    mode: 'branch' | 'time-gap';
+    label: 'branch' | 'time-gap' | 'mixed';
+    branchRatio: number;
+  };
+} {
   console.log('Total commits received:', commits.length);
   console.log('Branch distribution:', commits.reduce((acc, c) => {
     acc[c.branch] = (acc[c.branch] || 0) + 1;
@@ -17,7 +32,7 @@ export function buildPhases(commits: Commit[]): Phase[] {
   const branchRatio = branchCommits.length / Math.max(raw.length, 1);
   console.log('Branch ratio:', branchRatio, '— using', branchRatio > 0.2 ? 'branch' : 'time-gap', 'grouping');
 
-  let groups: any[] = [];
+  let groups: PhaseGroup[] = [];
   if (branchRatio > 0.2) {
     groups = groupByBranch(raw);
   } else {
@@ -27,7 +42,7 @@ export function buildPhases(commits: Commit[]): Phase[] {
 
   const now = new Date().getTime();
   // Final conversion to Phase[] with status and color
-  return groups.slice(-14).map((g, i) => {
+  const phases = groups.slice(-14).map((g, i) => {
     const isLast = i === Math.min(groups.length, 14) - 1;
     const daysSince = (now - new Date(g.end).getTime()) / 86400000;
     
@@ -38,13 +53,25 @@ export function buildPhases(commits: Commit[]): Phase[] {
     return {
       ...g,
       status,
-      color: COLORS[i % COLORS.length]
+      color: COLORS[i % COLORS.length],
+      idx: i
     };
   });
+
+  const label = branchRatio >= 0.25 ? 'branch' : (branchRatio <= 0.15 ? 'time-gap' : 'mixed');
+
+  return {
+    phases,
+    grouping: {
+      mode: branchRatio > 0.2 ? 'branch' : 'time-gap',
+      label,
+      branchRatio
+    }
+  };
 }
 
 function groupByBranch(commits: Commit[]) {
-  const groups: any[] = [];
+  const groups: PhaseGroup[] = [];
   let curCommitGroup: Commit[] = [];
   let curBranch = '';
 
@@ -90,7 +117,7 @@ function nameFromBranch(branch: string, commits: Commit[]): string {
 
   // (Word frequency logic included as requested, even if only Returning baseName)
   const words = commits
-    .flatMap(c => c.msg.toLowerCase().split(/[\s\(\)\:\-\/]+/))
+    .flatMap(c => c.msg.toLowerCase().split(/[\s():/-]+/))
     .filter(w => w.length > 3 && !STOP_WORDS.has(w));
 
   const freq: Record<string, number> = {};
@@ -102,7 +129,7 @@ function nameFromBranch(branch: string, commits: Commit[]): string {
 
 function groupByTimeGaps(commits: Commit[]) {
   const GAP_DAYS = 3;
-  const groups: any[] = [];
+  const groups: PhaseGroup[] = [];
   let current: Commit[] = [];
 
   commits.forEach((c, i) => {
@@ -121,7 +148,7 @@ function groupByTimeGaps(commits: Commit[]) {
   return groups;
 }
 
-function makeGroup(commits: Commit[]) {
+function makeGroup(commits: Commit[]): PhaseGroup {
   const start = commits[0].date;
   const end = commits[commits.length - 1].date;
   return {
@@ -148,7 +175,7 @@ function nameFromCommits(commits: Commit[]): string {
     .flatMap(c => {
       const scopeMatch = c.msg.match(/\w+\((\w+)\):/);
       const scope = scopeMatch ? [scopeMatch[1]] : [];
-      return [...scope, ...c.msg.toLowerCase().split(/[\s\(\)\:\-\/]+/)];
+      return [...scope, ...c.msg.toLowerCase().split(/[\s():/-]+/)];
     })
     .filter(w => w.length > 3 && !STOP_WORDS.has(w));
 
@@ -171,5 +198,3 @@ function nameFromCommits(commits: Commit[]): string {
 
   return toTitleCase(name);
 }
-
-

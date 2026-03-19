@@ -1,4 +1,4 @@
-export type CommitType = 'feat' | 'fix' | 'refactor' | 'docs' | 'chore' | 'other';
+export type CommitType = 'feat' | 'fix' | 'refactor' | 'docs' | 'test' | 'ci' | 'chore' | 'unknown';
 
 export interface Commit {
   sha: string;
@@ -20,4 +20,18 @@ export interface Phase {
   color: string;
   status: PhaseStatus;
   idx: number;
+}
+
+export interface AnalysisMeta {
+  commitsAnalyzed: number;
+  branchesCompared: number;
+  hitCommitLimit: boolean;
+  hitBranchLimit: boolean;
+  maxCommits: number;
+  maxBranches: number;
+  partial: boolean;
+  confidence: 'high' | 'medium' | 'low';
+  groupingMode: 'branch' | 'time-gap';
+  groupingLabel: 'branch' | 'time-gap' | 'mixed';
+  branchRatio: number;
 }

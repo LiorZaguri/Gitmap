@@ -11,7 +11,7 @@ import { HealthScore } from './components/HealthScore';
 import { useGitHub } from './hooks/useGitHub';
 
 function App() {
-  const { commits, phases, types, contribs, totalDays, loading, error, generate } = useGitHub();
+  const { repo, commits, phases, types, contribs, totalDays, analysis, loading, loadingStage, error, generate } = useGitHub();
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState<number | null>(null);
 
   const handlePinClick = (idx: number) => {
@@ -39,20 +39,33 @@ function App() {
         <p style={{ fontSize: '14px', color: 'var(--text2)' }}>Reverse-engineer your project history into phases, timelines, and insights.</p>
       </header>
 
-      <InputPanel onGenerate={generate} loading={loading} />
-
-      {error && <div className="error-box">{error}</div>}
+      <InputPanel onGenerate={generate} loading={loading} error={error} />
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '50px 0' }}>
           <div className="spinner"></div>
-          <p style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'JetBrains Mono, monospace' }}>Fetching data from GitHub...</p>
+          <p style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'JetBrains Mono, monospace' }}>
+            {loadingStage || 'Working...'}
+          </p>
         </div>
       )}
 
-      {commits && phases && (
+      {commits && phases && analysis && (
         <div style={{ marginTop: '20px' }}>
           <StatsRow commitCount={commits.length} phases={phases} totalDays={totalDays || 1} />
+          {(analysis.hitCommitLimit || analysis.hitBranchLimit) && (
+            <div style={{ margin: '10px 0 20px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
+              Partial analysis:
+              {analysis.hitCommitLimit && ` Analyzed latest ${analysis.maxCommits} commits.`}
+              {analysis.hitBranchLimit && ` Compared up to ${analysis.maxBranches} branches.`}
+            </div>
+          )}
+          <div style={{ margin: '0 0 20px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
+            Coverage: {analysis.commitsAnalyzed} commits analyzed, {analysis.branchesCompared} branches compared. Confidence: {analysis.confidence}.
+          </div>
+          <div style={{ margin: '0 0 16px', fontSize: '12px', color: 'var(--text2)', textAlign: 'center' }}>
+            Grouping: {analysis.groupingLabel === 'branch' ? 'Branch patterns' : (analysis.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals')}. Using {analysis.groupingMode === 'branch' ? 'branch' : 'time-gap'} grouping (non-main commits {Math.round(analysis.branchRatio * 100)}%).
+          </div>
           
           <p style={{ fontSize: '12px', color: 'var(--text3)', textAlign: 'center', marginBottom: '16px', fontFamily: 'JetBrains Mono, monospace' }}>
             Click any pin to explore that phase ↓
@@ -64,9 +77,14 @@ function App() {
             activePhaseIdx={selectedPhaseIdx}
           />
           
-          <PhaseDetail phase={selectedPhase} onClose={() => setSelectedPhaseIdx(null)} />
+          <PhaseDetail
+            phase={selectedPhase}
+            repo={repo}
+            analysis={analysis}
+            onClose={() => setSelectedPhaseIdx(null)}
+          />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="health-grid">
             <HealthScore commits={commits} phases={phases} />
           </div>
 

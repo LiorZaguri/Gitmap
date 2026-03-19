@@ -1,11 +1,11 @@
 import React from 'react';
-import type { CommitType } from '../types';
+import type { Commit, CommitType } from '../types';
 import { TYPE_COLORS } from '../utils/classify';
 
 interface InsightsRowProps {
   types: Record<CommitType, number>;
   contribs: string[];
-  commits: any[];
+  commits: Commit[];
 }
 
 export const InsightsRow: React.FC<InsightsRowProps> = ({ types, contribs, commits }) => {
@@ -16,7 +16,7 @@ export const InsightsRow: React.FC<InsightsRowProps> = ({ types, contribs, commi
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '24px' }}>
+    <div className="insights-grid">
       <div className="ins-card">
         <div className="ins-title">Commit breakdown</div>
         {Object.entries(types)

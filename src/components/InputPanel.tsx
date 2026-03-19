@@ -1,48 +1,58 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { normalizeRepoInput } from '../utils/normalizeRepo';
 
 interface InputPanelProps {
   onGenerate: (repo: string, token: string) => void;
   loading: boolean;
+  error: string | null;
 }
 
-export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading }) => {
-  const [repo, setRepo] = useState('');
+export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading, error }) => {
+  const [repo, setRepo] = useState(() => localStorage.getItem('gitmap_repo') ?? '');
   const [token, setToken] = useState('');
-
-  useEffect(() => {
-    const savedRepo = localStorage.getItem('gitmap_repo');
-    const savedToken = localStorage.getItem('gitmap_token');
-    if (savedRepo) setRepo(savedRepo);
-    if (savedToken) setToken(savedToken);
-  }, []);
+  const [repoError, setRepoError] = useState<string | null>(null);
 
   const handleGenerate = () => {
-    if (!repo || !repo.includes('/')) {
-      alert('Please enter a valid repo (owner/repo)');
+    const { value, error } = normalizeRepoInput(repo);
+    setRepoError(error);
+    if (error) {
       return;
     }
-    if (!token) {
-      alert('Please enter a GitHub token');
-      return;
-    }
-    onGenerate(repo, token);
+    if (value !== repo) setRepo(value);
+    onGenerate(value, token);
   };
 
   return (
     <div className="input-panel">
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+      {error && <div className="error-box" style={{ marginBottom: '12px' }}>{error}</div>}
+      <div className="input-grid">
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.08em' }}>Repository</label>
           <input
             type="text"
             value={repo}
-            onChange={(e) => setRepo(e.target.value)}
-            placeholder="owner/repo"
+            onChange={(e) => {
+              setRepo(e.target.value);
+              if (repoError) setRepoError(null);
+            }}
+            onBlur={() => {
+              const { value, error } = normalizeRepoInput(repo);
+              setRepoError(error);
+              if (!error && value !== repo) setRepo(value);
+            }}
+            placeholder="owner/repo or https://github.com/owner/repo"
             style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '9px 12px', fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text)', outline: 'none' }}
           />
+          {repoError && (
+            <div style={{ fontSize: '11px', color: 'var(--red)', marginTop: '6px' }}>
+              {repoError}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.08em' }}>GitHub Token</label>
+          <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.08em' }}>
+            GitHub Token (optional)
+          </label>
           <input
             type="password"
             value={token}
@@ -50,6 +60,9 @@ export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading }) =
             placeholder="ghp_xxxxxxxxxxxx"
             style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '9px 12px', fontSize: '13px', fontFamily: 'JetBrains Mono, monospace', color: 'var(--text)', outline: 'none' }}
           />
+          <div style={{ fontSize: '11px', color: 'var(--text3)', marginTop: '6px' }}>
+            Optional: use a token for higher rate limits and private repos. Token is used only for this session and is not stored.
+          </div>
         </div>
       </div>
       <button className="gen-btn" onClick={handleGenerate} disabled={loading}>

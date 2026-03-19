@@ -1,13 +1,15 @@
 import React from 'react';
-import type { Phase, CommitType } from '../types';
+import type { Phase, CommitType, AnalysisMeta } from '../types';
 import { TYPE_COLORS } from '../utils/classify';
 
 interface PhaseDetailProps {
   phase: Phase | null;
+  repo?: string;
+  analysis?: AnalysisMeta | null;
   onClose: () => void;
 }
 
-export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, onClose }) => {
+export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis, onClose }) => {
   if (!phase) return null;
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
@@ -24,10 +26,25 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, onClose }) => {
     fix: phase.items.filter(x => x.type === 'fix').length,
     refactor: phase.items.filter(x => x.type === 'refactor').length,
     docs: phase.items.filter(x => x.type === 'docs').length,
+    test: phase.items.filter(x => x.type === 'test').length,
+    ci: phase.items.filter(x => x.type === 'ci').length,
     chore: phase.items.filter(x => x.type === 'chore').length,
+    unknown: phase.items.filter(x => x.type === 'unknown').length,
   };
 
+  const contributors = Object.entries(
+    phase.items.reduce<Record<string, number>>((acc, item) => {
+      acc[item.author] = (acc[item.author] || 0) + 1;
+      return acc;
+    }, {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
   const statusCls = `s-${phase.status}`;
+  const groupingLabel = analysis?.groupingLabel === 'branch'
+    ? 'Branch patterns'
+    : (analysis?.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals');
 
   return (
     <div className="phase-popup" style={{ borderColor: `${phase.color}33`, marginTop: '16px' }}>
@@ -42,15 +59,34 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, onClose }) => {
         <span>📅 {fmtDate(phase.start)} → {fmtDate(phase.end)}</span>
         <span>⏱ {dur(phase.start, phase.end)}</span>
         <span>📝 {phase.items.length} commits</span>
-        <span>🌿 {phase.branch}</span>
+        <span>
+          🌿 {repo ? (
+            <a className="meta-link" href={`https://github.com/${repo}/tree/${phase.branch}`} target="_blank" rel="noreferrer">
+              {phase.branch}
+            </a>
+          ) : phase.branch}
+        </span>
+        {analysis && <span>🎯 {analysis.confidence} confidence</span>}
+        {analysis && <span>🧭 {groupingLabel}</span>}
         <div className="popup-badges" style={{ marginLeft: 'auto' }}>
           {counts.feat > 0 && <span className="badge b-feat">{counts.feat} feat</span>}
           {counts.fix > 0 && <span className="badge b-fix">{counts.fix} fix</span>}
           {counts.refactor > 0 && <span className="badge b-ref">{counts.refactor} refactor</span>}
           {counts.docs > 0 && <span className="badge b-docs">{counts.docs} docs</span>}
+          {counts.test > 0 && <span className="badge b-test">{counts.test} test</span>}
+          {counts.ci > 0 && <span className="badge b-ci">{counts.ci} ci</span>}
           {counts.chore > 0 && <span className="badge b-chore">{counts.chore} chore</span>}
+          {counts.unknown > 0 && <span className="badge b-unknown">{counts.unknown} unknown</span>}
         </div>
       </div>
+      {contributors.length > 0 && (
+        <div className="popup-contrib">
+          👥 Top contributors:{' '}
+          {contributors.map(([name, count]) => (
+            <span key={name} className="contrib-pill">{name} ({count})</span>
+          ))}
+        </div>
+      )}
 
       <div className="sub-road">
         <div className="sub-road-title">What happened in this phase</div>
@@ -65,6 +101,11 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, onClose }) => {
                   <span className="sub-date">{new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                 </div>
                 <div className="sub-msg">{item.msg}</div>
+                {repo && (
+                  <a className="sub-link" href={`https://github.com/${repo}/commit/${item.sha}`} target="_blank" rel="noreferrer">
+                    View commit →
+                  </a>
+                )}
               </div>
             </div>
           ))}
@@ -84,13 +125,20 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, onClose }) => {
         .popup-close:hover { color: var(--text) }
         .popup-meta { display: flex; gap: 16px; padding: 10px 18px; background: var(--bg3); font-size: 12px; color: var(--text2); border-bottom: 1px solid var(--border) }
         .popup-meta span { display: flex; align-items: center; gap: 4px }
+        .meta-link { color: var(--text); text-decoration: none }
+        .meta-link:hover { text-decoration: underline }
         .popup-badges { display: flex; gap: 6px }
+        .popup-contrib { padding: 8px 18px; background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+        .contrib-pill { background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; font-size: 11px; color: var(--text) }
         .badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px }
         .b-feat { background: rgba(0,208,132,0.1); color: var(--green) }
         .b-fix { background: rgba(255,85,85,0.1); color: #ff9999 }
         .b-ref { background: rgba(77,159,255,0.1); color: var(--blue) }
         .b-chore { background: rgba(145,145,164,0.1); color: var(--text2) }
         .b-docs { background: rgba(255,184,77,0.1); color: var(--amber) }
+        .b-test { background: rgba(90,248,232,0.1); color: var(--teal) }
+        .b-ci { background: rgba(167,139,250,0.1); color: var(--purple) }
+        .b-unknown { background: rgba(156,163,175,0.1); color: #9ca3af }
         .status-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px }
         .s-active { background: rgba(0,208,132,0.1); color: var(--green) }
         .s-done { background: rgba(145,145,164,0.1); color: var(--text2) }
@@ -106,12 +154,22 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, onClose }) => {
         .ctag { font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 1px 6px; border-radius: 4px }
         .sub-date { font-size: 10px; color: var(--text3); font-family: 'JetBrains Mono', monospace; margin-left: auto }
         .sub-msg { font-size: 12px; color: var(--text2); line-height: 1.4 }
+        .sub-link { font-size: 11px; color: var(--green); text-decoration: none; display: inline-block; margin-top: 6px }
+        .sub-link:hover { text-decoration: underline }
         .sub-more { font-size: 11px; color: var(--text3); text-align: center; padding: 6px 0; font-family: 'JetBrains Mono', monospace }
         .t-feat { background: rgba(0,208,132,0.1); color: var(--green) }
         .t-fix { background: rgba(255,85,85,0.1); color: #ff9999 }
         .t-refactor { background: rgba(77,159,255,0.1); color: var(--blue) }
         .t-docs { background: rgba(255,184,77,0.1); color: var(--amber) }
+        .t-test { background: rgba(90,248,232,0.1); color: var(--teal) }
+        .t-ci { background: rgba(167,139,250,0.1); color: var(--purple) }
         .t-chore { background: rgba(145,145,164,0.1); color: var(--text2) }
+        .t-unknown { background: rgba(156,163,175,0.1); color: #9ca3af }
+
+        @media (max-width: 720px) {
+          .popup-meta { flex-wrap: wrap; gap: 10px }
+          .popup-badges { width: 100%; margin-left: 0; flex-wrap: wrap }
+        }
       `}</style>
     </div>
   );

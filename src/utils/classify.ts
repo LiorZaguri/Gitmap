@@ -11,13 +11,16 @@ export const TYPE_COLORS: Record<CommitType, string> = {
   fix: '#ff5555',
   refactor: '#4d9fff',
   docs: '#ffb84d',
+  test: '#5af8e8',
+  ci: '#a78bfa',
   chore: '#6b7280',
-  other: '#a78bfa'
+  unknown: '#9ca3af'
 };
 
 export const STOP_WORDS = new Set([
   // commit type prefixes
   'feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'style', 'perf', 'build', 'revert',
+  'ci', 'cd', 'pipeline', 'workflow', 'actions',
   // generic action verbs that appear in every repo
   'add', 'adds', 'added', 'update', 'updates', 'updated', 'remove', 'removes', 'removed',
   'change', 'changes', 'changed', 'move', 'moves', 'moved', 'rename', 'renames', 'renamed',
@@ -39,14 +42,15 @@ export function toTitleCase(s: string): string {
 }
 
 export function cls(msg: string): CommitType {
-  if (!msg) return 'other';
+  if (!msg) return 'unknown';
   const m = msg.toLowerCase();
-  if (/^feat|^add |^implement|^build|^creat|^introduc/i.test(m)) return 'feat';
+  if (/^feat|^add |^implement|^creat|^introduc|^feature/i.test(m)) return 'feat';
   if (/^fix|^bug|^patch|^resolv|^hotfix/i.test(m)) return 'fix';
   if (/^refactor|rename|restructur|clean|simplif|reorganiz|migrat/i.test(m)) return 'refactor';
   if (/^docs?|readme|document|comment/i.test(m)) return 'docs';
-  if (/^chore|^ci|^build|depend|package|version|bump|release/i.test(m)) return 'chore';
-  return 'other';
+  if (/^test|^tests|spec|jest|mocha|vitest|cypress|playwright/i.test(m)) return 'test';
+  if (/^ci|^cd|pipeline|workflow|github actions|actions|circleci|travis/i.test(m)) return 'ci';
+  if (/^chore|^build|depend|package|version|bump|release/i.test(m)) return 'chore';
+  return 'unknown';
 }
-
 

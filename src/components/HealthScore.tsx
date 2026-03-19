@@ -39,13 +39,16 @@ export const HealthScore: React.FC<HealthScoreProps> = ({ commits, phases }) => 
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '4px' }}>
-            Velocity: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{health.velocity} commits/wk</span>
+            Activity: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{health.activity}%</span> · {health.velocity} commits/wk
           </div>
           <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '4px' }}>
-            Fix Ratio: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{health.fixRatio}%</span>
+            Stability: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{health.stability}%</span> · {health.stablePhases}/{health.totalPhases} phases healthy
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text3)', fontStyle: 'italic' }}>
-            Based on velocity, phase health, and type ratio.
+          <div style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '4px' }}>
+            Freshness: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{health.freshness}%</span> · last commit {health.daysSinceLast}d ago
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--text2)' }}>
+            Collaboration: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{health.collaboration}%</span> · {health.contributors} contributors
           </div>
         </div>
       </div>
