@@ -58,6 +58,7 @@ export function buildPhases(commits: Commit[]): {
     groups = groupByTimeGaps(raw);
   }
 
+  groups = applyFallbackGrouping(raw, groups);
 
   const now = new Date().getTime();
   // Final conversion to Phase[] with status and color
@@ -188,6 +189,28 @@ function groupByTimeGaps(commits: Commit[]) {
   });
   if (current.length) groups.push(makeGroup(current));
   return groups;
+}
+
+function applyFallbackGrouping(commits: Commit[], groups: PhaseGroup[]) {
+  if (groups.length >= 4) return groups;
+  if (commits.length < 200) return groups;
+
+  const first = new Date(commits[0].date).getTime();
+  const last = new Date(commits[commits.length - 1].date).getTime();
+  const totalDays = Math.max(Math.round(Math.abs(last - first) / 86400000), 1);
+  if (totalDays < 60) return groups;
+
+  const target = Math.min(10, Math.max(4, Math.round(totalDays / 30)));
+  const bucketSize = Math.max(1, Math.ceil(commits.length / target));
+  const fallback: PhaseGroup[] = [];
+
+  for (let i = 0; i < commits.length; i += bucketSize) {
+    const slice = commits.slice(i, i + bucketSize);
+    if (slice.length === 0) continue;
+    fallback.push(makeGroup(slice));
+  }
+
+  return fallback.length >= groups.length ? fallback : groups;
 }
 
 function makeGroup(commits: Commit[]): PhaseGroup {
