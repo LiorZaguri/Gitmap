@@ -76,7 +76,7 @@ export function selectBoundaries(
 
   const sorted = picked.sort((a, b) => a - b);
   const adjusted = splitLargePhases(sorted, scores, workItems.length, maxPhaseSize, minPhaseSize, minScore, reasons);
-  const merged = mergeTinyPhases(adjusted, scores, workItems.length, minPhaseSize, minScore, reasons);
+  const merged = mergeTinyPhases(adjusted, scores, workItems.length, minPhaseSize, reasons);
 
   return {
     boundaries: merged,
@@ -217,7 +217,6 @@ function mergeTinyPhases(
   scores: BoundaryScore[],
   totalItems: number,
   minPhaseSize: number,
-  minScore: number,
   reasons: Record<number, string>
 ) {
   const result = [...boundaries];
@@ -230,7 +229,7 @@ function mergeTinyPhases(
       const end = withEdges[i];
       const span = end - start;
       if (span >= minPhaseSize) continue;
-      const boundaryToRemove = boundaryToRemoveForTiny(result, start, end, scores, minScore);
+      const boundaryToRemove = boundaryToRemoveForTiny(result, start, end, scores);
       if (boundaryToRemove !== null) {
         const idx = result.indexOf(boundaryToRemove);
         if (idx >= 0) {
@@ -249,8 +248,7 @@ function boundaryToRemoveForTiny(
   boundaries: number[],
   start: number,
   end: number,
-  scores: BoundaryScore[],
-  minScore: number
+  scores: BoundaryScore[]
 ) {
   const candidates = [start, end].filter(idx => boundaries.includes(idx));
   if (candidates.length === 0) return null;
@@ -263,7 +261,6 @@ function boundaryToRemoveForTiny(
       weakestScore = score;
     }
   });
-  if (weakestScore >= minScore) return null;
   return weakest;
 }
 
