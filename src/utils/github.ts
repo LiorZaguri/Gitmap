@@ -89,6 +89,7 @@ export async function fetchGitHubSnapshot(
   const repoData = (await repoRes.json()) as GitHubRepo;
   const defaultBranch = repoData.default_branch || 'main';
 
+  onStage?.('Fetching branches');
   const brRes = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, { headers });
   if (!brRes.ok) {
     const msg = await toGitHubError(brRes, hasToken);
@@ -99,6 +100,7 @@ export async function fetchGitHubSnapshot(
   const branchesToCompare = branchCandidates.slice(0, maxBranches);
   const hitBranchLimit = branchCandidates.length > maxBranches;
 
+  onStage?.('Mapping branches');
   const branchMap: Record<string, string> = {};
   await Promise.allSettled(
     branchesToCompare.map(async (b) => {

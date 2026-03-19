@@ -63,6 +63,16 @@ export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading, err
           <div style={{ fontSize: '11px', color: 'var(--text3)', marginTop: '6px' }}>
             Optional: use a token for higher rate limits and private repos. Token is used only for this session and is not stored.
           </div>
+          <div style={{ fontSize: '11px', color: 'var(--text3)', marginTop: '6px' }}>
+            <a
+              href="https://github.com/settings/tokens/new?scopes=repo&description=Roadmap"
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: 'var(--green)', textDecoration: 'none' }}
+            >
+              Create a GitHub token →
+            </a>
+          </div>
         </div>
       </div>
       <button className="gen-btn" onClick={handleGenerate} disabled={loading}>

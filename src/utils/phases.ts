@@ -9,6 +9,25 @@ interface PhaseGroup {
   end: string;
 }
 
+const DOMAIN_MAP = [
+  { re: /dsl|compiler|lexer|parser|ast|token/i, name: 'DSL Compiler' },
+  { re: /auth|login|session|jwt|oauth|signup/i, name: 'Authentication' },
+  { re: /ui|component|design|style|css|layout/i, name: 'UI Components' },
+  { re: /api|endpoint|route|server|express/i, name: 'API Layer' },
+  { re: /database|schema|migration|postgres|sql/i, name: 'Database' },
+  { re: /test|spec|coverage|jest|vitest/i, name: 'Testing' },
+  { re: /deploy|ci|docker|infra|pipeline|action/i, name: 'Infrastructure' },
+  { re: /kpi|metric|chart|graph|visual|dashboard/i, name: 'Data Visualization' },
+  { re: /runtime|render|host|widget|tool/i, name: 'Runtime Engine' },
+  { re: /generation|llm|ai|prompt|model/i, name: 'AI Generation' },
+  { re: /init|setup|scaffold|bootstrap|initial/i, name: 'Project Setup' },
+  { re: /permission|role|access|security/i, name: 'Permissions' },
+  { re: /mobile|native|pwa|ios|android/i, name: 'Mobile' },
+  { re: /rich|component|kpi|banner|tabs/i, name: 'Rich Components' },
+  { re: /i18n|locale|translat|language/i, name: 'Internationalization' },
+  { re: /performance|optim|cache|speed/i, name: 'Performance' },
+];
+
 export function buildPhases(commits: Commit[]): {
   phases: Phase[];
   grouping: {
@@ -115,6 +134,12 @@ function nameFromBranch(branch: string, commits: Commit[]): string {
     .replace(/[-_]/g, ' ')
     .trim();
 
+  const normalized = baseName.toLowerCase();
+  const tooGeneric = !normalized || ['main', 'master', 'dev', 'release', 'feature', 'fix', 'chore'].includes(normalized);
+  if (tooGeneric) {
+    return nameFromCommits(commits);
+  }
+
   // (Word frequency logic included as requested, even if only Returning baseName)
   const words = commits
     .flatMap(c => c.msg.toLowerCase().split(/[\s():/-]+/))
@@ -125,6 +150,23 @@ function nameFromBranch(branch: string, commits: Commit[]): string {
   // const topWord = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0];
 
   return toTitleCase(baseName);
+}
+
+function domainNameFromCommits(commits: Commit[]) {
+  const text = commits.map(c => c.msg).join(' ').toLowerCase();
+  const matches = DOMAIN_MAP
+    .map(d => {
+      const count = (text.match(new RegExp(d.re.source, 'g')) || []).length;
+      return { name: d.name, count };
+    })
+    .filter(d => d.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  if (matches.length === 0) return null;
+  const top = matches[0];
+  const second = matches[1]?.count || 0;
+  if (top.count >= 2 && top.count >= second + 1) return top.name;
+  return null;
 }
 
 function groupByTimeGaps(commits: Commit[]) {
@@ -170,6 +212,9 @@ function nameFromCommits(commits: Commit[]): string {
 
   // If all commits are merge commits/noise, use all commits as source
   const source = meaningful.length > 0 ? meaningful : commits;
+
+  const domainName = domainNameFromCommits(source);
+  if (domainName) return domainName;
 
   const words = source
     .flatMap(c => {

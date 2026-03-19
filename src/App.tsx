@@ -76,6 +76,9 @@ function App() {
             onPinClick={handlePinClick} 
             activePhaseIdx={selectedPhaseIdx}
           />
+          <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '11px', color: 'var(--text3)', fontFamily: 'JetBrains Mono, monospace' }}>
+            ← scroll to explore the full journey →
+          </div>
           
           <PhaseDetail
             phase={selectedPhase}
