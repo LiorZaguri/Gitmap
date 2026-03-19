@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import type { Phase } from '../types';
 
 interface RoadMapProps {
@@ -87,8 +88,8 @@ export const RoadMap: React.FC<RoadMapProps> = ({ phases, onPinClick, activePhas
 
   return (
     <div style={{ marginBottom: '8px' }}>
-      <p style={{ fontSize: '12px', color: 'var(--text3)', textAlign: 'center', marginBottom: '16px', fontFamily: 'JetBrains Mono, monospace' }}>
-        Click any pin to explore that phase ↓
+      <p style={{ fontSize: '12px', color: 'var(--text3)', textAlign: 'center', marginBottom: '16px', fontFamily: 'JetBrains Mono, monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+        Click any pin to explore that phase <ArrowDown size={12} />
       </p>
       <div ref={containerRef} style={{ overflowX: 'auto', cursor: 'grab', padding: '8px 0', scrollbarWidth: 'none', userSelect: 'none' }}>
         <svg
@@ -150,8 +151,8 @@ export const RoadMap: React.FC<RoadMapProps> = ({ phases, onPinClick, activePhas
           })}
         </svg>
       </div>
-      <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '11px', color: 'var(--text3)', fontFamily: 'JetBrains Mono, monospace' }}>
-        ← scroll to explore the full journey →
+      <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '11px', color: 'var(--text3)', fontFamily: 'JetBrains Mono, monospace', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+        <ArrowLeft size={12} /> scroll to explore the full journey <ArrowRight size={12} />
       </div>
     </div>
   );

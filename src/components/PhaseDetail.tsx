@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Calendar, Clock, FileText, GitBranch, Target, Compass, Users, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Phase, CommitType, AnalysisMeta } from '../types';
 import { TYPE_COLORS } from '../utils/classify';
 
@@ -69,18 +70,19 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
       </div>
       
       <div className="popup-meta">
-        <span>📅 {fmtDate(phase.start)} → {fmtDate(phase.end)}</span>
-        <span>⏱ {dur(phase.start, phase.end)}</span>
-        <span>📝 {phase.items.length} commits</span>
+        <span><Calendar size={12} className="meta-icon" />{fmtDate(phase.start)} <ArrowRight size={12} className="meta-icon" /> {fmtDate(phase.end)}</span>
+        <span><Clock size={12} className="meta-icon" />{dur(phase.start, phase.end)}</span>
+        <span><FileText size={12} className="meta-icon" />{phase.items.length} commits</span>
         <span>
-          🌿 {repo ? (
+          <GitBranch size={12} className="meta-icon" />
+          {repo ? (
             <a className="meta-link" href={`https://github.com/${repo}/tree/${phase.branch}`} target="_blank" rel="noreferrer">
               {phase.branch}
             </a>
           ) : phase.branch}
         </span>
-        {analysis && <span>🎯 {analysis.confidence} confidence</span>}
-        {analysis && <span>🧭 {groupingLabel}</span>}
+        {analysis && <span><Target size={12} className="meta-icon" />{analysis.confidence} confidence</span>}
+        {analysis && <span><Compass size={12} className="meta-icon" />{groupingLabel}</span>}
         <div className="popup-badges" style={{ marginLeft: 'auto' }}>
           {counts.feat > 0 && <span className="badge b-feat">{counts.feat} feat</span>}
           {counts.fix > 0 && <span className="badge b-fix">{counts.fix} fix</span>}
@@ -94,7 +96,7 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
       </div>
       {contributors.length > 0 && (
         <div className="popup-contrib">
-          👥 Top contributors:{' '}
+          <Users size={12} className="meta-icon" /> Top contributors:{' '}
           {contributors.map(([name, count]) => (
             <span key={name} className="contrib-pill">{name} ({count})</span>
           ))}
@@ -115,7 +117,7 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
                 <div className="sub-msg">{item.msg}</div>
                 {repo && (
                   <a className="sub-link" href={`https://github.com/${repo}/commit/${item.sha}`} target="_blank" rel="noreferrer">
-                    View commit →
+                    View commit <ArrowRight size={12} />
                   </a>
                 )}
               </div>
@@ -124,13 +126,13 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
           {totalItems > PAGE_SIZE && (
             <div className="sub-pagination">
               <button className="page-btn" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={pageSafe === 0}>
-                ← Prev
+                <ChevronLeft size={12} /> Prev
               </button>
               <span className="page-meta">
                 Showing {startIdx + 1}-{endIdx} of {totalItems}
               </span>
               <button className="page-btn" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={pageSafe >= totalPages - 1}>
-                Next →
+                Next <ChevronRight size={12} />
               </button>
             </div>
           )}
@@ -144,7 +146,8 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         .popup-close { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 18px; padding: 0 4px; line-height: 1 }
         .popup-close:hover { color: var(--text) }
         .popup-meta { display: flex; gap: 16px; padding: 10px 18px; background: var(--bg3); font-size: 12px; color: var(--text2); border-bottom: 1px solid var(--border) }
-        .popup-meta span { display: flex; align-items: center; gap: 4px }
+        .popup-meta span { display: inline-flex; align-items: center; gap: 6px }
+        .meta-icon { color: var(--text3); }
         .meta-link { color: var(--text); text-decoration: none }
         .meta-link:hover { text-decoration: underline }
         .popup-badges { display: flex; gap: 6px }
@@ -174,10 +177,10 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         .ctag { font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 1px 6px; border-radius: 4px }
         .sub-date { font-size: 10px; color: var(--text3); font-family: 'JetBrains Mono', monospace; margin-left: auto }
         .sub-msg { font-size: 12px; color: var(--text2); line-height: 1.4 }
-        .sub-link { font-size: 11px; color: var(--green); text-decoration: none; display: inline-block; margin-top: 6px }
+        .sub-link { font-size: 11px; color: var(--green); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-top: 6px }
         .sub-link:hover { text-decoration: underline }
         .sub-pagination { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 8px 0; }
-        .page-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-family: 'JetBrains Mono', monospace; }
+        .page-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-family: 'JetBrains Mono', monospace; display: inline-flex; align-items: center; gap: 4px; }
         .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .page-meta { font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
         .t-feat { background: rgba(0,208,132,0.1); color: var(--green) }

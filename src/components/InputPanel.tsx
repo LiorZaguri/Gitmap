@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { normalizeRepoInput } from '../utils/normalizeRepo';
 
 interface InputPanelProps {
@@ -72,9 +73,9 @@ export const InputPanel: React.FC<InputPanelProps> = ({
               href="https://github.com/settings/tokens/new?scopes=repo&description=Roadmap"
               target="_blank"
               rel="noreferrer"
-              style={{ color: 'var(--green)', textDecoration: 'none' }}
+              style={{ color: 'var(--green)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
-              Create a GitHub token →
+              Create a GitHub token <ArrowRight size={12} />
             </a>
           </div>
         </div>
@@ -83,7 +84,10 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         {loading ? 'Generating...' : 'Generate Roadmap'}
       </button>
       <p style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text3)', marginTop: '8px' }}>
-        Token needs Contents: Read-only. <a href="https://github.com/settings/tokens/new?scopes=repo&description=Roadmap" target="_blank" rel="noreferrer" style={{ color: 'var(--green)', textDecoration: 'none' }}>Create one →</a>
+        Token needs Contents: Read-only.{' '}
+        <a href="https://github.com/settings/tokens/new?scopes=repo&description=Roadmap" target="_blank" rel="noreferrer" style={{ color: 'var(--green)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          Create one <ArrowRight size={12} />
+        </a>
       </p>
     </div>
   );

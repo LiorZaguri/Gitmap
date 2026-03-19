@@ -1,5 +1,6 @@
 import type { CommitType } from './types';
 import { useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import './App.css';
 import { InputPanel } from './components/InputPanel';
 import { StatsRow } from './components/StatsRow';
@@ -29,7 +30,7 @@ function App() {
       <header className="hero-header">
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '18px', opacity: 0.6 }}>
           <div style={{ width: '26px', height: '26px', background: 'var(--green)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="#000"><path d="M7 1L9 5H13L9.5 8L11 12L7 9.5L3 12L4.5 8L1 5H5Z"/></svg>
+            <Sparkles size={14} strokeWidth={2.2} color="#000" />
           </div>
           <span style={{ fontSize: '13px', fontWeight: 600, letterSpacing: '0.02em', color: 'var(--text2)' }}>Roadmap Generator</span>
         </div>
