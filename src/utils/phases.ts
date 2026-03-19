@@ -1,37 +1,29 @@
 import type { Commit, Phase, PhaseStatus } from '../types';
-import { cls, COLORS, STOP_WORDS, toTitleCase } from './classify';
+import { COLORS, STOP_WORDS, toTitleCase } from './classify';
 
-export function buildPhases(commits: any[]): Phase[] {
+export function buildPhases(commits: Commit[]): Phase[] {
   console.log('Total commits received:', commits.length);
   console.log('Branch distribution:', commits.reduce((acc, c) => {
     acc[c.branch] = (acc[c.branch] || 0) + 1;
     return acc;
   }, {} as Record<string, number>));
 
-  // Convert raw GitHub commits to our Commit type with guards
-  const raw = (commits.map(c => {
-    if (!c?.commit?.message) return null;
-    return {
-      sha: c.sha,
-      msg: c.commit.message.split('\n')[0],
-      date: c.commit.author.date,
-      author: c.commit.author.name,
-      branch: c.branch || 'main',
-      type: cls(c.commit.message.split('\n')[0])
-    };
-  }).filter(Boolean) as Commit[]);
+  // commits are already Commit objects — no conversion needed
+  const raw = commits.filter(c => c && c.msg && c.date);
 
   const branchCommits = raw.filter(c =>
     c.branch && c.branch !== 'main' && c.branch !== 'master' && c.branch !== 'HEAD'
   );
   const branchRatio = branchCommits.length / Math.max(raw.length, 1);
+  console.log('Branch ratio:', branchRatio, '— using', branchRatio > 0.2 ? 'branch' : 'time-gap', 'grouping');
 
   let groups: any[] = [];
-  if (branchRatio > 0.3) {
+  if (branchRatio > 0.2) {
     groups = groupByBranch(raw);
   } else {
     groups = groupByTimeGaps(raw);
   }
+
 
   const now = new Date().getTime();
   // Final conversion to Phase[] with status and color
