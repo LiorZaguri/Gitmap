@@ -67,18 +67,11 @@ function App() {
             Grouping: {analysis.groupingLabel === 'branch' ? 'Branch patterns' : (analysis.groupingLabel === 'time-gap' ? 'Time gaps' : 'Mixed signals')}. Using {analysis.groupingMode === 'branch' ? 'branch' : 'time-gap'} grouping (non-main commits {Math.round(analysis.branchRatio * 100)}%).
           </div>
           
-          <p style={{ fontSize: '12px', color: 'var(--text3)', textAlign: 'center', marginBottom: '16px', fontFamily: 'JetBrains Mono, monospace' }}>
-            Click any pin to explore that phase ↓
-          </p>
-
           <RoadMap 
             phases={phases} 
             onPinClick={handlePinClick} 
             activePhaseIdx={selectedPhaseIdx}
           />
-          <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '11px', color: 'var(--text3)', fontFamily: 'JetBrains Mono, monospace' }}>
-            ← scroll to explore the full journey →
-          </div>
           
           <PhaseDetail
             phase={selectedPhase}
