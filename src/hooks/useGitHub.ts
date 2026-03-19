@@ -29,6 +29,7 @@ interface GitHubCompare {
 export function useGitHub() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingStage, setLoadingStage] = useState<string | null>(null);
   const [data, setData] = useState<{
     commits: Commit[];
     phases: Phase[];
@@ -60,6 +61,7 @@ export function useGitHub() {
   const generate = useCallback(async (repo: string, token: string) => {
     setLoading(true);
     setError(null);
+    setLoadingStage('Fetching commits');
     const tokenValue = token.trim();
     const hasToken = tokenValue.length > 0;
     const headers: Record<string, string> = {
@@ -97,6 +99,7 @@ export function useGitHub() {
       }
 
       // 2. Fetch repo and branches
+      setLoadingStage('Fetching repo data');
       const repoRes = await fetch(`https://api.github.com/repos/${repo}`, { headers });
       if (!repoRes.ok) {
         const msg = await toGitHubError(repoRes, hasToken);
@@ -153,10 +156,12 @@ export function useGitHub() {
       enriched.reverse();
 
       // 5. Build phases from enriched commits
+      setLoadingStage('Analyzing phases');
       const phases = buildPhases(enriched);
 
 
       // 6. Calculate stats
+      setLoadingStage('Building insights');
       const types: Record<CommitType, number> = {
         feat: 0,
         fix: 0,
@@ -191,8 +196,9 @@ export function useGitHub() {
       setError(message);
     } finally {
       setLoading(false);
+      setLoadingStage(null);
     }
   }, []);
 
-  return { ...data, loading, error, generate };
+  return { ...data, loading, loadingStage, error, generate };
 }

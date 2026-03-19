@@ -11,7 +11,7 @@ import { HealthScore } from './components/HealthScore';
 import { useGitHub } from './hooks/useGitHub';
 
 function App() {
-  const { commits, phases, types, contribs, totalDays, loading, error, generate } = useGitHub();
+  const { commits, phases, types, contribs, totalDays, loading, loadingStage, error, generate } = useGitHub();
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState<number | null>(null);
 
   const handlePinClick = (idx: number) => {
@@ -44,7 +44,9 @@ function App() {
       {loading && (
         <div style={{ textAlign: 'center', padding: '50px 0' }}>
           <div className="spinner"></div>
-          <p style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'JetBrains Mono, monospace' }}>Fetching data from GitHub...</p>
+          <p style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'JetBrains Mono, monospace' }}>
+            {loadingStage || 'Working...'}
+          </p>
         </div>
       )}
 
