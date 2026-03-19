@@ -3,6 +3,7 @@ import type { Commit, Phase, CommitType, AnalysisMeta } from '../types';
 import { cls } from '../utils/classify';
 import { buildPhases } from '../utils/phases';
 import { fetchGitHubSnapshot } from '../utils/github';
+import { computeConfidence } from '../utils/analysisMeta';
 
 const COMMITS_PER_PAGE = 100;
 const MAX_PAGES = 5;
@@ -96,8 +97,7 @@ export function useGitHub() {
       const lastDate = new Date(enriched[enriched.length - 1].date).getTime();
       const totalDays = Math.max(Math.round(Math.abs(lastDate - firstDate) / 86400000), 1);
 
-      const partial = hitCommitLimit || hitBranchLimit;
-      const confidence = !partial ? 'high' : (hitCommitLimit && hitBranchLimit ? 'low' : 'medium');
+      const { partial, confidence } = computeConfidence(hitCommitLimit, hitBranchLimit);
 
       setData({
         repo,
