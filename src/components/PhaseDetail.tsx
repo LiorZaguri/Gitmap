@@ -165,6 +165,11 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         .t-ci { background: rgba(167,139,250,0.1); color: var(--purple) }
         .t-chore { background: rgba(145,145,164,0.1); color: var(--text2) }
         .t-unknown { background: rgba(156,163,175,0.1); color: #9ca3af }
+
+        @media (max-width: 720px) {
+          .popup-meta { flex-wrap: wrap; gap: 10px }
+          .popup-badges { width: 100%; margin-left: 0; flex-wrap: wrap }
+        }
       `}</style>
     </div>
   );

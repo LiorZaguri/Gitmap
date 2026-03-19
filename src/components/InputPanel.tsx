@@ -35,7 +35,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({ onGenerate, loading, err
   return (
     <div className="input-panel">
       {error && <div className="error-box" style={{ marginBottom: '12px' }}>{error}</div>}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+      <div className="input-grid">
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <label style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '5px', letterSpacing: '0.08em' }}>Repository</label>
           <input

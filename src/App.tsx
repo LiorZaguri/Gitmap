@@ -84,7 +84,7 @@ function App() {
             onClose={() => setSelectedPhaseIdx(null)}
           />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="health-grid">
             <HealthScore commits={commits} phases={phases} />
           </div>
 
