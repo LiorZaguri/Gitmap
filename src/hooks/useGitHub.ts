@@ -48,32 +48,39 @@ export function useGitHub() {
       );
       validCommits.reverse();
 
-      // 2. Fetch branches for mapping
-      const br = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, { headers: h });
-      const branches = br.ok ? await br.json() : [];
+      // 2. Fetch repo and branches
+      const repoRes = await fetch(`https://api.github.com/repos/${repo}`, { headers: h });
+      const repoData = repoRes.ok ? await repoRes.json() : {};
+      const defaultBranch = repoData.default_branch || 'main';
+
+      const brRes = await fetch(`https://api.github.com/repos/${repo}/branches?per_page=100`, { headers: h });
+      const branches = brRes.ok ? await brRes.json() : [];
 
       // 3. Map branches to commits (Feature branches take priority over main)
+      // Using Compare API to get ONLY unique commits per branch
       const brMap: Record<string, string> = {};
-      
-      // Default all fetched commits to main/master first
-      validCommits.forEach(c => {
-        brMap[c.sha] = 'main';
-      });
 
-      // Second pass — fetch each feature branch and OVERRIDE main mapping
-      await Promise.allSettled(branches
-        .filter((b: any) => b.name !== 'main' && b.name !== 'master')
-        .slice(0, 15) // Limit to avoid hitting rate limits too fast
-        .map(async (b: any) => {
-          const r = await fetch(`https://api.github.com/repos/${repo}/commits?sha=${b.name}&per_page=100`, { headers: h });
-          if (r.ok) {
-            const bc = await r.json();
-            bc.forEach((c: any) => {
-              // Always override — feature branch wins over main
-              brMap[c.sha] = b.name;
-            });
-          }
-        })
+      await Promise.allSettled(
+        branches
+          .filter((b: any) => b.name !== defaultBranch)
+          .slice(0, 15) // Limit to avoid hitting rate limits
+          .map(async (b: any) => {
+            try {
+              // Compare API: gives commits in branch but NOT in default branch
+              const r = await fetch(
+                `https://api.github.com/repos/${repo}/compare/${defaultBranch}...${b.name}`,
+                { headers: h }
+              );
+              if (!r.ok) return;
+              const data = await r.json();
+              // data.commits = commits unique to this branch
+              (data.commits || []).forEach((c: any) => {
+                brMap[c.sha] = b.name;
+              });
+            } catch (e) {
+              console.warn(`Failed to compare branch ${b.name}:`, e);
+            }
+          })
       );
 
       // 4. Enrich commits with branch info and classify
@@ -82,12 +89,16 @@ export function useGitHub() {
         msg: c.commit.message.split('\n')[0],
         date: c.commit.author.date,
         author: c.commit.author.name,
-        branch: brMap[c.sha] || 'main',
+        branch: brMap[c.sha] || defaultBranch,
         type: cls(c.commit.message.split('\n')[0])
       }));
 
+      // CRITICAL: Reverse so oldest commits come first
+      enriched.reverse();
+
       // 5. Build phases from enriched commits
       const phases = buildPhases(enriched);
+
 
       // 6. Calculate stats
       const types: Record<CommitType, number> = {} as any;
