@@ -28,10 +28,13 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
   const counts = {
     feat: phase.items.filter(x => x.type === 'feat').length,
     fix: phase.items.filter(x => x.type === 'fix').length,
+    perf: phase.items.filter(x => x.type === 'perf').length,
     refactor: phase.items.filter(x => x.type === 'refactor').length,
     docs: phase.items.filter(x => x.type === 'docs').length,
     test: phase.items.filter(x => x.type === 'test').length,
     ci: phase.items.filter(x => x.type === 'ci').length,
+    build: phase.items.filter(x => x.type === 'build').length,
+    style: phase.items.filter(x => x.type === 'style').length,
     chore: phase.items.filter(x => x.type === 'chore').length,
     unknown: phase.items.filter(x => x.type === 'unknown').length,
   };
@@ -86,10 +89,13 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         <div className="popup-badges" style={{ marginLeft: 'auto' }}>
           {counts.feat > 0 && <span className="badge b-feat">{counts.feat} feat</span>}
           {counts.fix > 0 && <span className="badge b-fix">{counts.fix} fix</span>}
+          {counts.perf > 0 && <span className="badge b-perf">{counts.perf} perf</span>}
           {counts.refactor > 0 && <span className="badge b-ref">{counts.refactor} refactor</span>}
           {counts.docs > 0 && <span className="badge b-docs">{counts.docs} docs</span>}
           {counts.test > 0 && <span className="badge b-test">{counts.test} test</span>}
           {counts.ci > 0 && <span className="badge b-ci">{counts.ci} ci</span>}
+          {counts.build > 0 && <span className="badge b-build">{counts.build} build</span>}
+          {counts.style > 0 && <span className="badge b-style">{counts.style} style</span>}
           {counts.chore > 0 && <span className="badge b-chore">{counts.chore} chore</span>}
           {counts.unknown > 0 && <span className="badge b-unknown">{counts.unknown} unknown</span>}
         </div>
@@ -170,11 +176,14 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         .badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px }
         .b-feat { background: rgba(0,208,132,0.1); color: var(--green) }
         .b-fix { background: rgba(255,85,85,0.1); color: #ff9999 }
+        .b-perf { background: rgba(34,197,94,0.12); color: #4ade80 }
         .b-ref { background: rgba(77,159,255,0.1); color: var(--blue) }
         .b-chore { background: rgba(145,145,164,0.1); color: var(--text2) }
         .b-docs { background: rgba(255,184,77,0.1); color: var(--amber) }
         .b-test { background: rgba(90,248,232,0.1); color: var(--teal) }
         .b-ci { background: rgba(167,139,250,0.1); color: var(--purple) }
+        .b-build { background: rgba(245,158,11,0.12); color: #fbbf24 }
+        .b-style { background: rgba(244,114,182,0.12); color: #f472b6 }
         .b-unknown { background: rgba(156,163,175,0.1); color: #9ca3af }
         .status-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px }
         .s-active { background: rgba(0,208,132,0.1); color: var(--green) }
@@ -199,10 +208,13 @@ export const PhaseDetail: React.FC<PhaseDetailProps> = ({ phase, repo, analysis,
         .page-meta { font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
         .t-feat { background: rgba(0,208,132,0.1); color: var(--green) }
         .t-fix { background: rgba(255,85,85,0.1); color: #ff9999 }
+        .t-perf { background: rgba(34,197,94,0.12); color: #4ade80 }
         .t-refactor { background: rgba(77,159,255,0.1); color: var(--blue) }
         .t-docs { background: rgba(255,184,77,0.1); color: var(--amber) }
         .t-test { background: rgba(90,248,232,0.1); color: var(--teal) }
         .t-ci { background: rgba(167,139,250,0.1); color: var(--purple) }
+        .t-build { background: rgba(245,158,11,0.12); color: #fbbf24 }
+        .t-style { background: rgba(244,114,182,0.12); color: #f472b6 }
         .t-chore { background: rgba(145,145,164,0.1); color: var(--text2) }
         .t-unknown { background: rgba(156,163,175,0.1); color: #9ca3af }
 

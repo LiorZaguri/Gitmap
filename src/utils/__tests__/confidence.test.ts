@@ -9,6 +9,7 @@ function makeWorkItem(overrides: Partial<WorkItem>): WorkItem {
     kind: 'commit_window',
     title: 'Work',
     bodySummary: undefined,
+    bodyText: undefined,
     commitShas: [],
     changedFiles: [],
     pathDomains: [],
@@ -57,7 +58,16 @@ describe('confidence metrics', () => {
 
   it('calculates history quality', () => {
     const commits: Commit[] = [
-      { sha: 'a', msg: 'feat(core): add api', date: '2024-01-01', author: 'A', branch: 'main', type: 'feat' }
+      {
+        sha: 'a',
+        msg: 'feat(core): add api',
+        fullMessage: 'feat(core): add api\n\nAdd the first API route.\n\nWhy: clients need a stable endpoint.',
+        body: 'Add the first API route.\n\nWhy: clients need a stable endpoint.',
+        date: '2024-01-01',
+        author: 'A',
+        branch: 'main',
+        type: 'feat'
+      }
     ];
     const workItems = [makeWorkItem({ kind: 'pull_request', contributors: ['A'] })];
     const phases: Phase[] = [
@@ -75,5 +85,7 @@ describe('confidence metrics', () => {
     ];
     const quality = calculateHistoryQuality(commits, phases, workItems);
     expect(quality.score).toBeGreaterThan(0);
+    expect(quality.explanationDepth).toBeGreaterThan(0);
+    expect(quality.structuredCommits).toBeGreaterThan(0);
   });
 });

@@ -3,7 +3,7 @@ import { buildPhaseName } from '../phaseNaming';
 import type { PhaseFingerprint, Commit } from '../../types';
 
 const commits: Commit[] = [
-  { sha: 'a', msg: 'feat(core): setup', date: '2024-01-01', author: 'A', branch: 'main', type: 'feat' }
+  { sha: 'a', msg: 'feat(core): setup', fullMessage: 'feat(core): setup', body: undefined, date: '2024-01-01', author: 'A', branch: 'main', type: 'feat' }
 ];
 
 function baseFingerprint(): PhaseFingerprint {

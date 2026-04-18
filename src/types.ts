@@ -1,8 +1,10 @@
-export type CommitType = 'feat' | 'fix' | 'refactor' | 'docs' | 'test' | 'ci' | 'chore' | 'unknown';
+export type CommitType = 'feat' | 'fix' | 'perf' | 'refactor' | 'docs' | 'test' | 'ci' | 'build' | 'style' | 'chore' | 'unknown';
 
 export interface Commit {
   sha: string;
   msg: string;
+  fullMessage: string;
+  body?: string;
   date: string;
   author: string;
   branch: string;
@@ -15,6 +17,7 @@ export interface WorkItem {
   kind: WorkItemKind;
   title: string;
   bodySummary?: string;
+  bodyText?: string;
   commitShas: string[];
   changedFiles: string[];
   pathDomains: string[];
@@ -92,8 +95,13 @@ export interface HistoryQuality {
   prCoverage: number;
   pathCoherence: number;
   structuredCommits: number;
+  typeCoverage: number;
+  scopeCoverage: number;
+  subjectStyle: number;
+  footerSignals: number;
   releaseSignals: number;
   clarity: number;
+  explanationDepth: number;
   continuity: number;
   summary: string;
 }

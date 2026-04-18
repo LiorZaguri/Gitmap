@@ -4,9 +4,9 @@ import type { Commit } from '../../types';
 import type { PullRequestMeta, ReleaseMeta } from '../github';
 
 const commits: Commit[] = [
-  { sha: 'a', msg: 'feat(api): add endpoint', date: '2024-01-01', author: 'A', branch: 'main', type: 'feat' },
-  { sha: 'b', msg: 'feat(api): add tests', date: '2024-01-02', author: 'A', branch: 'main', type: 'test' },
-  { sha: 'c', msg: 'fix(ui): tweak', date: '2024-01-03', author: 'B', branch: 'main', type: 'fix' }
+  { sha: 'a', msg: 'feat(api): add endpoint', fullMessage: 'feat(api): add endpoint', body: undefined, date: '2024-01-01', author: 'A', branch: 'main', type: 'feat' },
+  { sha: 'b', msg: 'feat(api): add tests', fullMessage: 'feat(api): add tests', body: undefined, date: '2024-01-02', author: 'A', branch: 'main', type: 'test' },
+  { sha: 'c', msg: 'fix(ui): tweak', fullMessage: 'fix(ui): tweak', body: undefined, date: '2024-01-03', author: 'B', branch: 'main', type: 'fix' }
 ];
 
 const prs: Record<string, PullRequestMeta> = {

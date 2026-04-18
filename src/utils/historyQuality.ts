@@ -1,5 +1,5 @@
 import type { Commit, HistoryQuality, Phase, WorkItem } from '../types';
-import { STOP_WORDS } from './classify';
+import { STOP_WORDS, parseConventionalHeader } from './classify';
 
 const GENERIC_PATTERNS = [
   /^wip\b/i,
@@ -14,13 +14,21 @@ const GENERIC_PATTERNS = [
 ];
 
 const WEIGHTS = {
-  prCoverage: 0.2,
-  pathCoherence: 0.2,
-  structuredCommits: 0.18,
-  releaseSignals: 0.12,
-  clarity: 0.15,
-  continuity: 0.15
+  prCoverage: 0.12,
+  pathCoherence: 0.14,
+  structuredCommits: 0.12,
+  typeCoverage: 0.08,
+  scopeCoverage: 0.08,
+  subjectStyle: 0.1,
+  footerSignals: 0.08,
+  releaseSignals: 0.08,
+  clarity: 0.1,
+  explanationDepth: 0.06,
+  continuity: 0.04
 };
+
+const CONVENTIONAL_TYPES = new Set(['build', 'ci', 'docs', 'feat', 'fix', 'perf', 'refactor', 'style', 'test']);
+const GENERIC_SCOPES = new Set(['core', 'misc', 'general', 'all', 'repo', 'app', 'project']);
 
 function tokenizeMessage(msg: string) {
   return msg
@@ -65,6 +73,75 @@ function scoreCommitClarity(commits: Commit[]) {
   return (clear / commits.length) * 100;
 }
 
+function scoreStructuredCommits(commits: Commit[]) {
+  if (commits.length === 0) return 0;
+  const structured = commits.filter(commit => hasConventionalHeader(commit.msg)).length;
+  return (structured / commits.length) * 100;
+}
+
+function scoreTypeCoverage(commits: Commit[]) {
+  if (commits.length === 0) return 0;
+  const matching = commits.filter(commit => {
+    const parsed = parseConventionalHeader(commit.msg);
+    return parsed.type ? CONVENTIONAL_TYPES.has(parsed.type) : false;
+  }).length;
+  return (matching / commits.length) * 100;
+}
+
+function scoreScopeCoverage(commits: Commit[]) {
+  const conventional = commits.filter(commit => hasConventionalHeader(commit.msg));
+  if (conventional.length === 0) return 0;
+  const scoped = conventional.filter(commit => {
+    const scope = parseConventionalHeader(commit.msg).scope?.trim().toLowerCase();
+    return Boolean(scope && !GENERIC_SCOPES.has(scope));
+  }).length;
+  return (scoped / conventional.length) * 100;
+}
+
+function scoreSubjectStyle(commits: Commit[]) {
+  if (commits.length === 0) return 0;
+  const styled = commits.filter(commit => hasGoodSubjectStyle(commit.msg, commit.fullMessage)).length;
+  return (styled / commits.length) * 100;
+}
+
+function scoreFooterSignals(commits: Commit[], workItems: WorkItem[]) {
+  const commitSignals = commits.filter(commit => hasFooterSignal(commit.fullMessage)).length;
+  const workItemSignals = workItems.filter(item => hasFooterSignal(item.bodyText || '')).length;
+  const commitScore = commits.length > 0 ? commitSignals / commits.length : 0;
+  const workItemScore = workItems.length > 0 ? workItemSignals / workItems.length : 0;
+  if (commits.length === 0 && workItems.length === 0) return 0;
+  if (commits.length === 0) return workItemScore * 100;
+  if (workItems.length === 0) return commitScore * 100;
+  return ((commitScore * 0.7) + (workItemScore * 0.3)) * 100;
+}
+
+function isGoodExplanationBody(body?: string) {
+  const trimmed = body?.trim();
+  if (!trimmed) return false;
+  const paragraphs = trimmed.split('\n').map(line => line.trim()).filter(Boolean);
+  const text = trimmed.toLowerCase();
+  const hasWhy = /\b(why|because|motivation|reason|context|so that|to avoid|previously)\b/.test(text);
+  const hasHow = /\b(how|approach|implementation|instead|now|before|after|changed|change)\b/.test(text);
+  const longEnough = trimmed.length >= 40;
+  return longEnough && paragraphs.length >= 2 && (hasWhy || hasHow);
+}
+
+function scoreExplanationDepth(commits: Commit[], workItems: WorkItem[]) {
+  const explainedCommits = commits.filter(commit => isGoodExplanationBody(commit.body)).length;
+  const explainedWorkItems = workItems.filter(item => isGoodExplanationBody(item.bodyText)).length;
+  const commitScore = commits.length > 0 ? explainedCommits / commits.length : 0;
+  const prItems = workItems.filter(item => item.kind === 'pull_request');
+  const prScore = prItems.length > 0
+    ? explainedWorkItems / prItems.length
+    : workItems.length > 0
+      ? explainedWorkItems / workItems.length
+      : 0;
+  if (commits.length === 0 && workItems.length === 0) return 0;
+  if (prItems.length === 0 && workItems.length === 0) return commitScore * 100;
+  if (commits.length === 0) return prScore * 100;
+  return ((commitScore * 0.6) + (prScore * 0.4)) * 100;
+}
+
 function scoreWorkstreamCoherence(phases: Phase[]) {
   if (phases.length === 0) return 0;
   const ratios = phases.map(phase => {
@@ -77,12 +154,6 @@ function scoreWorkstreamCoherence(phases: Phase[]) {
   return (ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100;
 }
 
-
-function scoreStructuredCommits(commits: Commit[]) {
-  if (commits.length === 0) return 0;
-  const structured = commits.filter(c => /\w+\(([^)]+)\):/.test(c.msg)).length;
-  return (structured / commits.length) * 100;
-}
 
 function scorePrCoverage(workItems: WorkItem[]) {
   if (workItems.length === 0) return 0;
@@ -116,10 +187,10 @@ function scoreContributorContinuity(workItems: WorkItem[]) {
 
 function buildSummary(score: number, weakestKey: keyof HistoryQuality) {
   if (score >= 75) {
-    return 'Strong semantic signal: history is structured, consistent, and easy to interpret.';
+    return 'Strong semantic signal: history follows clear commit conventions and is easy to interpret.';
   }
   if (score >= 55) {
-    return 'Moderate semantic signal: history is usable but could be cleaner or more consistent.';
+    return 'Moderate semantic signal: history is usable but commit conventions are only partially consistent.';
   }
   if (weakestKey === 'prCoverage') {
     return 'Weak semantic signal: PR linkage is sparse, making workstreams harder to follow.';
@@ -128,13 +199,28 @@ function buildSummary(score: number, weakestKey: keyof HistoryQuality) {
     return 'Weak semantic signal: file-path coherence is low across work items.';
   }
   if (weakestKey === 'structuredCommits') {
-    return 'Weak semantic signal: commit messages lack consistent structure.';
+    return 'Weak semantic signal: commit headers rarely follow a consistent type/scope/subject format.';
+  }
+  if (weakestKey === 'typeCoverage') {
+    return 'Weak semantic signal: commit types are inconsistent or too often unclassified.';
+  }
+  if (weakestKey === 'scopeCoverage') {
+    return 'Weak semantic signal: commits rarely use stable, descriptive scopes.';
+  }
+  if (weakestKey === 'subjectStyle') {
+    return 'Weak semantic signal: commit subjects often break style rules or are hard to scan.';
+  }
+  if (weakestKey === 'footerSignals') {
+    return 'Weak semantic signal: issue-closing and breaking-change footers are mostly absent.';
   }
   if (weakestKey === 'releaseSignals') {
     return 'Weak semantic signal: release markers are missing or inconsistent.';
   }
   if (weakestKey === 'clarity') {
     return 'Weak semantic signal: commit wording is too noisy or generic.';
+  }
+  if (weakestKey === 'explanationDepth') {
+    return 'Weak semantic signal: commit and PR bodies rarely explain motivation or implementation.';
   }
   return 'Weak semantic signal: contributor/workstream continuity is low.';
 }
@@ -143,16 +229,26 @@ export function calculateHistoryQuality(commits: Commit[], phases: Phase[], work
   const prCoverage = scorePrCoverage(workItems);
   const pathCoherence = scoreWorkstreamCoherence(phases);
   const structuredCommits = scoreStructuredCommits(commits);
+  const typeCoverage = scoreTypeCoverage(commits);
+  const scopeCoverage = scoreScopeCoverage(commits);
+  const subjectStyle = scoreSubjectStyle(commits);
+  const footerSignals = scoreFooterSignals(commits, workItems);
   const releaseSignals = scoreReleaseSignals(workItems, phases);
   const clarity = scoreCommitClarity(commits);
+  const explanationDepth = scoreExplanationDepth(commits, workItems);
   const continuity = scoreContributorContinuity(workItems);
 
   const weightedScore =
     (prCoverage / 100) * WEIGHTS.prCoverage +
     (pathCoherence / 100) * WEIGHTS.pathCoherence +
     (structuredCommits / 100) * WEIGHTS.structuredCommits +
+    (typeCoverage / 100) * WEIGHTS.typeCoverage +
+    (scopeCoverage / 100) * WEIGHTS.scopeCoverage +
+    (subjectStyle / 100) * WEIGHTS.subjectStyle +
+    (footerSignals / 100) * WEIGHTS.footerSignals +
     (releaseSignals / 100) * WEIGHTS.releaseSignals +
     (clarity / 100) * WEIGHTS.clarity +
+    (explanationDepth / 100) * WEIGHTS.explanationDepth +
     (continuity / 100) * WEIGHTS.continuity;
 
   const score = Math.round(weightedScore * 100);
@@ -161,8 +257,13 @@ export function calculateHistoryQuality(commits: Commit[], phases: Phase[], work
     ['prCoverage', prCoverage],
     ['pathCoherence', pathCoherence],
     ['structuredCommits', structuredCommits],
+    ['typeCoverage', typeCoverage],
+    ['scopeCoverage', scopeCoverage],
+    ['subjectStyle', subjectStyle],
+    ['footerSignals', footerSignals],
     ['releaseSignals', releaseSignals],
     ['clarity', clarity],
+    ['explanationDepth', explanationDepth],
     ['continuity', continuity]
   ];
   const weakest = components.sort((a, b) => a[1] - b[1])[0]?.[0] ?? 'clarity';
@@ -173,9 +274,34 @@ export function calculateHistoryQuality(commits: Commit[], phases: Phase[], work
     prCoverage: Math.round(prCoverage),
     pathCoherence: Math.round(pathCoherence),
     structuredCommits: Math.round(structuredCommits),
+    typeCoverage: Math.round(typeCoverage),
+    scopeCoverage: Math.round(scopeCoverage),
+    subjectStyle: Math.round(subjectStyle),
+    footerSignals: Math.round(footerSignals),
     releaseSignals: Math.round(releaseSignals),
     clarity: Math.round(clarity),
+    explanationDepth: Math.round(explanationDepth),
     continuity: Math.round(continuity),
     summary
   };
+}
+
+function hasConventionalHeader(message: string) {
+  const parsed = parseConventionalHeader(message);
+  return Boolean(parsed.type && parsed.subject && message.includes(':'));
+}
+
+function hasGoodSubjectStyle(subjectLine: string, fullMessage: string) {
+  const parsed = parseConventionalHeader(subjectLine);
+  const subject = (parsed.subject || subjectLine).trim();
+  if (!subject) return false;
+  const startsLowercase = /^[a-z0-9]/.test(subject);
+  const noTrailingDot = !subject.endsWith('.');
+  const concise = subject.length <= 100;
+  const wrapped = fullMessage.split('\n').every(line => line.length <= 100);
+  return startsLowercase && noTrailingDot && concise && wrapped;
+}
+
+function hasFooterSignal(text: string) {
+  return /\b(closes|fixes|resolves)\s+#\d+\b/i.test(text) || /BREAKING CHANGE:/i.test(text);
 }

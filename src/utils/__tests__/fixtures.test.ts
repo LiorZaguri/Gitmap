@@ -7,7 +7,7 @@ import type { Commit, WorkItem } from '../../types';
 import type { PullRequestMeta, ReleaseMeta } from '../github';
 
 function makeCommit(sha: string, msg: string, date: string, author: string, type: Commit['type']): Commit {
-  return { sha, msg, date, author, branch: 'main', type };
+  return { sha, msg, fullMessage: msg, body: undefined, date, author, branch: 'main', type };
 }
 
 function buildPhasesFromWorkItems(workItems: WorkItem[], commits: Commit[]) {
@@ -60,6 +60,16 @@ describe('fixture-style repo histories', () => {
     const items = buildWorkItems(commits, {}, { windowSize: 2 });
     expect(items[0].kind).toBe('commit_window');
     expect(items.length).toBeGreaterThan(1);
+  });
+
+  it('repeated scopes give commit windows a meaningful title', () => {
+    const commits = [
+      makeCommit('a', 'feat(auth): add session store', '2024-01-01', 'A', 'feat'),
+      makeCommit('b', 'fix(auth): handle token refresh', '2024-01-02', 'A', 'fix'),
+      makeCommit('c', 'test(auth): cover session expiry', '2024-01-03', 'A', 'test')
+    ];
+    const items = buildWorkItems(commits, {}, { windowSize: 4 });
+    expect(items[0].title).toBe('Auth');
   });
 
   it('monorepo domains influence naming', () => {

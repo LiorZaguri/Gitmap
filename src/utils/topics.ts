@@ -1,4 +1,4 @@
-import { STOP_WORDS } from './classify';
+import { STOP_WORDS, parseConventionalHeader } from './classify';
 
 export interface TopicToken {
   token: string;
@@ -69,23 +69,10 @@ export function toTopicTokenList(weights: Map<string, number>): TopicToken[] {
     });
 }
 
-function parseConventionalHeader(text: string) {
-  const trimmed = text.trim();
-  const match = trimmed.match(/^(\w+)(\(([^)]+)\))?:\s*(.+)$/);
-  if (!match) {
-    return { subject: trimmed };
-  }
-  return {
-    type: match[1]?.toLowerCase(),
-    scope: match[3]?.toLowerCase(),
-    subject: match[4]?.trim()
-  };
-}
-
 function normalizeSubject(text: string) {
   return text
     .replace(/^\[.*?\]\s*/g, '')
-    .replace(/^(feat|fix|chore|docs|refactor|test|build|ci)\s*[:/]\s*/i, '')
+    .replace(/^(feat|fix|chore|docs|refactor|test|tests|build|ci|perf|style)\s*[:/]\s*/i, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

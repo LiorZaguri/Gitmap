@@ -64,6 +64,8 @@ export function useGitHub() {
       const enriched: Commit[] = validCommits.map(c => ({
         sha: c.sha,
         msg: c.commit.message.split('\n')[0],
+        fullMessage: c.commit.message,
+        body: c.commit.message.split('\n').slice(1).join('\n').trim() || undefined,
         date: c.commit.author.date,
         author: c.commit.author.name,
         branch: branchMap[c.sha] || defaultBranch,
@@ -129,10 +131,13 @@ export function useGitHub() {
       const types: Record<CommitType, number> = {
         feat: 0,
         fix: 0,
+        perf: 0,
         refactor: 0,
         docs: 0,
         test: 0,
         ci: 0,
+        build: 0,
+        style: 0,
         chore: 0,
         unknown: 0
       };
