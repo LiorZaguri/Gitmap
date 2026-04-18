@@ -250,20 +250,11 @@ export async function fetchCommitPathDomains(
   commits: Array<{ sha: string; msg: string }>,
   options?: { maxCommits?: number; minFiles?: number; dominance?: number }
 ) {
-  const maxCommits = options?.maxCommits ?? 40;
-  const minFiles = options?.minFiles ?? 5;
-  const dominance = options?.dominance ?? 0.6;
+  const maxCommits = options?.maxCommits ?? 60;
+  const minFiles = options?.minFiles ?? 3;
+  const dominance = options?.dominance ?? 0.45;
 
-  const mergeCandidates = commits.filter(c => /^merge\b/i.test(c.msg)).map(c => c.sha);
-  const spaced: string[] = [];
-  if (commits.length > 0) {
-    const step = Math.max(1, Math.floor(commits.length / maxCommits));
-    for (let i = 0; i < commits.length && spaced.length < maxCommits; i += step) {
-      spaced.push(commits[i].sha);
-    }
-  }
-
-  const unique = [...new Set([...mergeCandidates, ...spaced])].slice(0, maxCommits);
+  const unique = sampleCommitShas(commits, maxCommits);
   const domainMap: Record<string, string> = {};
 
   for (const sha of unique) {
@@ -292,13 +283,13 @@ export async function fetchPullRequestMetadata(
   commits: Array<{ sha: string; msg: string }>,
   options?: { maxCommits?: number; maxFiles?: number }
 ) {
-  const maxCommits = options?.maxCommits ?? 25;
+  const maxCommits = options?.maxCommits ?? 40;
   const maxFiles = options?.maxFiles ?? 100;
 
-  const candidates = commits
-    .map((c, idx) => ({ ...c, idx }))
-    .filter(c => /^merge\b/i.test(c.msg) || /pull request/i.test(c.msg));
-  const selected = candidates.slice(-maxCommits);
+  const selected = sampleCommitShas(commits, maxCommits).map(sha => {
+    const commit = commits.find(item => item.sha === sha);
+    return commit ? { ...commit } : null;
+  }).filter(Boolean) as Array<{ sha: string; msg: string }>;
   const prMap: Record<string, PullRequestMeta> = {};
   const filesCache = new Map<number, string[]>();
   const prInfoCache = new Map<number, PullRequestInfo>();
@@ -339,6 +330,21 @@ export async function fetchPullRequestMetadata(
   }
 
   return prMap;
+}
+
+function sampleCommitShas(
+  commits: Array<{ sha: string; msg: string }>,
+  maxCommits: number
+) {
+  const mergeCandidates = commits.filter(c => /^merge\b/i.test(c.msg) || /pull request/i.test(c.msg)).map(c => c.sha);
+  const spaced: string[] = [];
+  if (commits.length > 0) {
+    const step = Math.max(1, Math.floor(commits.length / maxCommits));
+    for (let i = 0; i < commits.length && spaced.length < maxCommits; i += step) {
+      spaced.push(commits[i].sha);
+    }
+  }
+  return [...new Set([...mergeCandidates, ...spaced])].slice(0, maxCommits);
 }
 
 function createRequestQueue(concurrency: number) {

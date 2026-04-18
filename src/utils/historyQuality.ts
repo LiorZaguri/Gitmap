@@ -122,8 +122,14 @@ function isGoodExplanationBody(body?: string) {
   const text = trimmed.toLowerCase();
   const hasWhy = /\b(why|because|motivation|reason|context|so that|to avoid|previously)\b/.test(text);
   const hasHow = /\b(how|approach|implementation|instead|now|before|after|changed|change)\b/.test(text);
-  const longEnough = trimmed.length >= 40;
-  return longEnough && paragraphs.length >= 2 && (hasWhy || hasHow);
+  const bulletLike = /^\s*[-*]/m.test(trimmed);
+  const sentences = trimmed
+    .split(/[.!?]\s+/)
+    .map(part => part.trim())
+    .filter(Boolean);
+  const longEnough = trimmed.length >= 60;
+  const structurallyRich = paragraphs.length >= 2 || bulletLike || sentences.length >= 3;
+  return longEnough && (hasWhy || hasHow || structurallyRich);
 }
 
 function scoreExplanationDepth(commits: Commit[], workItems: WorkItem[]) {
@@ -155,10 +161,18 @@ function scoreWorkstreamCoherence(phases: Phase[]) {
 }
 
 
-function scorePrCoverage(workItems: WorkItem[]) {
-  if (workItems.length === 0) return 0;
-  const prItems = workItems.filter(item => item.kind === 'pull_request').length;
-  return (prItems / workItems.length) * 100;
+function scorePrCoverage(commits: Commit[], workItems: WorkItem[]) {
+  const workItemScore = workItems.length > 0
+    ? workItems.filter(item => item.kind === 'pull_request').length / workItems.length
+    : 0;
+  const commitFooterScore = commits.length > 0
+    ? commits.filter(commit => hasPullRequestSignal(commit.fullMessage)).length / commits.length
+    : 0;
+
+  if (commits.length === 0 && workItems.length === 0) return 0;
+  if (workItems.length === 0) return commitFooterScore * 100;
+  if (commits.length === 0) return workItemScore * 100;
+  return ((workItemScore * 0.65) + (commitFooterScore * 0.35)) * 100;
 }
 
 function scoreReleaseSignals(workItems: WorkItem[], phases: Phase[]) {
@@ -226,7 +240,7 @@ function buildSummary(score: number, weakestKey: keyof HistoryQuality) {
 }
 
 export function calculateHistoryQuality(commits: Commit[], phases: Phase[], workItems: WorkItem[]): HistoryQuality {
-  const prCoverage = scorePrCoverage(workItems);
+  const prCoverage = scorePrCoverage(commits, workItems);
   const pathCoherence = scoreWorkstreamCoherence(phases);
   const structuredCommits = scoreStructuredCommits(commits);
   const typeCoverage = scoreTypeCoverage(commits);
@@ -298,10 +312,17 @@ function hasGoodSubjectStyle(subjectLine: string, fullMessage: string) {
   const startsLowercase = /^[a-z0-9]/.test(subject);
   const noTrailingDot = !subject.endsWith('.');
   const concise = subject.length <= 100;
-  const wrapped = fullMessage.split('\n').every(line => line.length <= 100);
+  const wrapped = fullMessage
+    .split('\n')
+    .filter(line => line.trim().length > 0)
+    .every(line => line.length <= 120);
   return startsLowercase && noTrailingDot && concise && wrapped;
 }
 
 function hasFooterSignal(text: string) {
-  return /\b(closes|fixes|resolves)\s+#\d+\b/i.test(text) || /BREAKING CHANGE:/i.test(text);
+  return hasPullRequestSignal(text) || /BREAKING CHANGE:/i.test(text);
+}
+
+function hasPullRequestSignal(text: string) {
+  return /\b(closes|fixes|resolves)\s+#\d+\b/i.test(text) || /\bpr close\s+#\d+\b/i.test(text);
 }

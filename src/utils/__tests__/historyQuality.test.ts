@@ -42,8 +42,8 @@ describe('history quality explanation depth', () => {
     const commits = [
       makeCommit({
         msg: 'feat(auth): add login flow',
-        fullMessage: 'feat(auth): add login flow\n\nAdd login support.\n\nWhy: users need authenticated sessions.\nHow: wire a token exchange flow.\n\nCloses #12',
-        body: 'Add login support.\n\nWhy: users need authenticated sessions.\nHow: wire a token exchange flow.\n\nCloses #12'
+        fullMessage: 'feat(auth): add login flow\n\nAdd login support.\n\nThis change adds session creation and token exchange.\nIt also updates the error handling path for retries.\n\nPR Close #12',
+        body: 'Add login support.\n\nThis change adds session creation and token exchange.\nIt also updates the error handling path for retries.\n\nPR Close #12'
       })
     ];
     const workItems = [
@@ -81,5 +81,6 @@ describe('history quality explanation depth', () => {
     expect(quality.scopeCoverage).toBe(100);
     expect(quality.subjectStyle).toBe(100);
     expect(quality.footerSignals).toBeGreaterThan(50);
+    expect(quality.prCoverage).toBeGreaterThan(20);
   });
 });
